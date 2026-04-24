@@ -49,7 +49,7 @@ def main():
     seed = 0
     rng = np.random.default_rng(seed)
 
-    output_folder = "results_1D_new"
+    output_folder = "results_1D"
     os.makedirs(output_folder, exist_ok=False)
 
     # -----------------------------
