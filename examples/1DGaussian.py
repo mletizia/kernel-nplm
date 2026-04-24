@@ -138,6 +138,8 @@ def main():
     plot_classifier_score_distributions(
         scores_ref=scores_ref,
         scores_data=scores_data,
+        label_data=fr"NPLM - $t={t_obs:.2f}$",
+        xlabel="NPLM output on observed sample",
         save_path=output_folder + "/nplm_score_distributions.png",
     )
 

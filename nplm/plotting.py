@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from scipy.stats import norm, chi2
 
 
@@ -181,75 +182,103 @@ def plot_classifier_score_distributions(
     toy_scores_data=None,
     save_path=None,
     figsize=(10, 8),
+    xlabel="NPLM output",
+    color_ref="#636363",
+    color_data="#d95f02",
+    font_family="serif",
+    font_size=18,
     show=True,
 ):
-    """Plot classifier score distributions for reference and data samples."""
+    """Plot paper-style classifier score distributions for reference and data samples."""
     scores_ref = np.asarray(scores_ref, dtype=float).ravel()
     scores_data = np.asarray(scores_data, dtype=float).ravel()
 
     if bins is None:
-        bins = np.arange(0.0, 1.0, 0.02)
+        bins = np.linspace(0.0, 1.0, 51)
     else:
         bins = np.asarray(bins, dtype=float)
 
     if len(scores_ref) == 0 or len(scores_data) == 0:
         raise ValueError("scores_ref and scores_data must be non-empty")
+    if bins.ndim != 1 or len(bins) < 2:
+        raise ValueError("bins must be a 1D array with at least two edges")
+
+    font = font_manager.FontProperties(family=font_family, size=font_size)
+    bin_center = 0.5 * (bins[1:] + bins[:-1])
+
+    hist_ref, bin_edges = np.histogram(scores_ref, bins=bins, density=True)
+    hist_data, _ = np.histogram(scores_data, bins=bins, density=True)
+
+    def plot_hist(ax, hist, color, label):
+        ax.hist(
+            bin_center,
+            bins,
+            weights=hist,
+            histtype="stepfilled",
+            label=label,
+            fill=False,
+            alpha=1.0,
+            edgecolor=color,
+            lw=2,
+        )
+
+    def add_toy_band(ax, toy_scores, color, label):
+        if toy_scores is None:
+            return
+
+        toy_hists = []
+        for s in toy_scores:
+            s = np.asarray(s, dtype=float).ravel()
+            if len(s) == 0:
+                continue
+            hist, _ = np.histogram(s, bins=bins, density=True)
+            toy_hists.append(hist)
+
+        if len(toy_hists) == 0:
+            return
+
+        toy_hists = np.vstack(toy_hists)
+        mean_hist = toy_hists.mean(axis=0)
+        std_hist = toy_hists.std(axis=0)
+        hist_up = mean_hist + std_hist
+        hist_down = np.maximum(mean_hist - std_hist, 0.0)
+
+        plot_hist(ax, mean_hist, color, label)
+        ax.step(bin_edges[:-1], hist_up, where="post", alpha=0.3, color=color)
+        ax.step(bin_edges[:-1], hist_down, where="post", alpha=0.3, color=color)
+        ax.fill_between(
+            bin_edges[:-1],
+            hist_up,
+            hist_down,
+            interpolate=False,
+            color=color,
+            alpha=0.1,
+            step="post",
+        )
 
     with plt.style.context("classic"):
         fig, ax = plt.subplots(figsize=figsize)
         fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
 
-        ax.hist(
-            scores_ref,
-            bins=bins,
-            density=True,
-            histtype="stepfilled",
-            fill=False,
-            alpha=1.0,
-            edgecolor="#1f77b4",
-            linewidth=2,
-            label=label_ref,
-        )
+        plot_hist(ax, hist_ref, color_ref, label_ref)
+        plot_hist(ax, hist_data, color_data, label_data)
 
-        ax.hist(
-            scores_data,
-            bins=bins,
-            density=True,
-            histtype="stepfilled",
-            fill=False,
-            alpha=1.0,
-            edgecolor="#d62728",
-            linewidth=2,
-            label=label_data,
-        )
+        add_toy_band(ax, toy_scores_ref, color_ref, "Reference toy band")
+        add_toy_band(ax, toy_scores_data, color_data, "Data toy band")
 
-        def add_toy_band(toy_scores, color, label):
-            if toy_scores is None:
-                return
-            toy_hists = []
-            for s in toy_scores:
-                s = np.asarray(s, dtype=float).ravel()
-                hist, _ = np.histogram(s, bins=bins, density=True)
-                toy_hists.append(hist)
-            toy_hists = np.vstack(toy_hists)
-            mean_hist = toy_hists.mean(axis=0)
-            std_hist = toy_hists.std(axis=0)
-            edges = bins
-            centers = 0.5 * (edges[:-1] + edges[1:])
-            ax.step(edges[:-1], mean_hist + std_hist, where="post", color=color, alpha=0.3)
-            ax.step(edges[:-1], mean_hist - std_hist, where="post", color=color, alpha=0.3)
-            ax.fill_between(edges[:-1], mean_hist - std_hist, mean_hist + std_hist, step="post", color=color, alpha=0.08)
-            ax.plot(edges[:-1], mean_hist, color=color, linestyle="--", linewidth=1.5, label=label)
-
-        add_toy_band(toy_scores_ref, "#636363", "Reference toy band")
-        add_toy_band(toy_scores_data, "#636363", "Data toy band")
-
-        ax.set_xlabel(r"$\sigma(f_w(x))$", fontsize=14)
-        ax.set_ylabel("Density", fontsize=14)
+        ax.set_xlabel(xlabel, fontsize=font_size, fontfamily=font_family)
+        ax.set_ylabel("Density", fontsize=font_size, fontfamily=font_family)
         ax.set_yscale("log")
-        ax.legend(fontsize=12, loc="best")
         ax.set_xlim(bins[0], bins[-1])
-        ax.grid(True, which="both", ls="--", lw=0.5, alpha=0.4)
+
+        legend = ax.legend(prop=font, frameon=True, loc="best")
+        legend.get_frame().set_color("white")
+
+        ax.tick_params(axis="both", which="major", labelsize=font_size - 2)
+        for tick in ax.get_xticklabels() + ax.get_yticklabels():
+            tick.set_fontfamily(font_family)
+
         plt.tight_layout()
 
         if save_path is not None:
