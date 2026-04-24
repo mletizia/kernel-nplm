@@ -299,3 +299,37 @@ class LogFalkonNPLM:
             "N_R": int(self.N_R),
             "N_D": int(self.N_D),
         }
+
+    def compute_scores(self, X: np.ndarray) -> np.ndarray:
+        """
+        Compute sigmoid-transformed classifier scores for input samples.
+
+        Requires that compute_statistic() has been called first to train the model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input samples, shape (N, d)
+
+        Returns
+        -------
+        np.ndarray
+            Sigmoid-transformed scores, shape (N,)
+        """
+        if self.model is None:
+            raise RuntimeError("Model not trained. Call compute_statistic() first.")
+
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim != 2:
+            raise ValueError("X must be 2D array (N, d)")
+        X = np.ascontiguousarray(X)
+
+        X_t = torch.from_numpy(X)
+        scores = self.model.predict(X_t)
+
+        if scores.ndim == 2 and scores.shape[1] == 1:
+            scores = scores.reshape(-1)
+
+        # Apply sigmoid to convert log-odds to probability
+        sigmoid_scores = torch.sigmoid(scores)
+        return sigmoid_scores.detach().cpu().numpy()

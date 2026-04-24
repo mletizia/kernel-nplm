@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from nplm import LogFalkonNPLM
-from nplm.plotting import plot_nplm_distributions
+from nplm.plotting import plot_nplm_distributions, plot_classifier_score_distributions
 
 from data import (
     sample_ref_exp,
@@ -113,6 +113,32 @@ def main():
         t_null=t_null,
         t_alt=t_alt,
         save_path=output_folder + "/nplm_distributions.png",
+    )
+
+    # -----------------------------
+    # Observed score distribution diagnostics
+    # -----------------------------
+    x_ref_obs = sample_ref_exp(N_R, rng=rng)
+    x_dat_obs, _, _, _, _ = make_data_sample_poisson(NR=NR, NS=NS, rng=rng)
+    X_obs, y_obs = build_pooled_sample(x_ref_obs, x_dat_obs)
+
+    nplm_obs = LogFalkonNPLM(cfg)
+    t_obs, details = nplm_obs.compute_statistic(X_obs, y_obs, return_details=True)
+    scores_obs = nplm_obs.compute_scores(X_obs)
+
+    scores_ref = scores_obs[y_obs == 0]
+    scores_data = scores_obs[y_obs == 1]
+
+    np.save(output_folder + "/scores_ref.npy", scores_ref)
+    np.save(output_folder + "/scores_data.npy", scores_data)
+
+    print(f"Observed statistic t = {t_obs:.6g}")
+    print(f"Saved reference and data scores to {output_folder}/scores_ref.npy and scores_data.npy")
+
+    plot_classifier_score_distributions(
+        scores_ref=scores_ref,
+        scores_data=scores_data,
+        save_path=output_folder + "/nplm_score_distributions.png",
     )
 
 

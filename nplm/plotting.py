@@ -171,6 +171,98 @@ def plot_nplm_distributions(
     plt.show()
 
 
+def plot_classifier_score_distributions(
+    scores_ref,
+    scores_data,
+    bins=None,
+    label_ref="Reference",
+    label_data="Data",
+    toy_scores_ref=None,
+    toy_scores_data=None,
+    save_path=None,
+    figsize=(10, 8),
+    show=True,
+):
+    """Plot classifier score distributions for reference and data samples."""
+    scores_ref = np.asarray(scores_ref, dtype=float).ravel()
+    scores_data = np.asarray(scores_data, dtype=float).ravel()
+
+    if bins is None:
+        bins = np.arange(0.0, 1.0, 0.02)
+    else:
+        bins = np.asarray(bins, dtype=float)
+
+    if len(scores_ref) == 0 or len(scores_data) == 0:
+        raise ValueError("scores_ref and scores_data must be non-empty")
+
+    with plt.style.context("classic"):
+        fig, ax = plt.subplots(figsize=figsize)
+        fig.patch.set_facecolor("white")
+
+        ax.hist(
+            scores_ref,
+            bins=bins,
+            density=True,
+            histtype="stepfilled",
+            fill=False,
+            alpha=1.0,
+            edgecolor="#1f77b4",
+            linewidth=2,
+            label=label_ref,
+        )
+
+        ax.hist(
+            scores_data,
+            bins=bins,
+            density=True,
+            histtype="stepfilled",
+            fill=False,
+            alpha=1.0,
+            edgecolor="#d62728",
+            linewidth=2,
+            label=label_data,
+        )
+
+        def add_toy_band(toy_scores, color, label):
+            if toy_scores is None:
+                return
+            toy_hists = []
+            for s in toy_scores:
+                s = np.asarray(s, dtype=float).ravel()
+                hist, _ = np.histogram(s, bins=bins, density=True)
+                toy_hists.append(hist)
+            toy_hists = np.vstack(toy_hists)
+            mean_hist = toy_hists.mean(axis=0)
+            std_hist = toy_hists.std(axis=0)
+            edges = bins
+            centers = 0.5 * (edges[:-1] + edges[1:])
+            ax.step(edges[:-1], mean_hist + std_hist, where="post", color=color, alpha=0.3)
+            ax.step(edges[:-1], mean_hist - std_hist, where="post", color=color, alpha=0.3)
+            ax.fill_between(edges[:-1], mean_hist - std_hist, mean_hist + std_hist, step="post", color=color, alpha=0.08)
+            ax.plot(edges[:-1], mean_hist, color=color, linestyle="--", linewidth=1.5, label=label)
+
+        add_toy_band(toy_scores_ref, "#636363", "Reference toy band")
+        add_toy_band(toy_scores_data, "#636363", "Data toy band")
+
+        ax.set_xlabel(r"$\sigma(f_w(x))$", fontsize=14)
+        ax.set_ylabel("Density", fontsize=14)
+        ax.set_yscale("log")
+        ax.legend(fontsize=12, loc="best")
+        ax.set_xlim(bins[0], bins[-1])
+        ax.grid(True, which="both", ls="--", lw=0.5, alpha=0.4)
+        plt.tight_layout()
+
+        if save_path is not None:
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved plot to {save_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+    return fig, ax
+
 
 def plot_reconstruction_1d(
     *,
