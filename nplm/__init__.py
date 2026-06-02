@@ -1,3 +1,5 @@
 from .logfalkon_nplm import LogFalkonNPLM
 
-__all__ = ["LogFalkonNPLM"]
+from .event_weighted_cross_entropy import EventWeightedCrossEntropy
+
+__all__ = ["LogFalkonNPLM", "EventWeightedCrossEntropy"]
