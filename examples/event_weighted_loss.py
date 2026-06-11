@@ -1,24 +1,37 @@
-# event_weighted_loss.py
+"""Exercise the custom event-weighted LogisticFalkon loss."""
 
-import torch
 import falkon
+import torch
 from falkon.gsc_losses import WeightedCrossEntropyLoss
 from falkon.options import FalkonOptions
 
 from nplm import EventWeightedCrossEntropyLoss
 
 
-def encode_signed_weights(y01, active_weight):
-    """
-    Encode labels and weights in one Falkon-compatible target column.
+#########################################################################################################
+# Encoding helpers
 
-    y01 = 0 -> negative/reference class, encoded as -weight
-    y01 = 1 -> positive/data class, encoded as +weight
+def encode_signed_weights(y01, active_weight):
+    """Encode labels and weights in one Falkon-compatible target column.
+
+    :param y01: Binary labels with shape ``(n_samples, 1)``.
+    :param active_weight: Active event weights with shape ``(n_samples, 1)``.
+    :returns: Signed target column with shape ``(n_samples, 1)``.
     """
+    if y01.shape != active_weight.shape:
+        raise ValueError("y01 and active_weight must have the same shape")
+
     return torch.where(y01 > 0.5, active_weight, -active_weight)
 
 
+#########################################################################################################
+# Checks
+
 def test_constant_weights_against_builtin():
+    """Compare the custom loss against Falkon's built-in weighted BCE loss.
+
+    :returns: ``None``.
+    """
     print("\n[1] Constant-weight derivative check")
 
     torch.manual_seed(0)
@@ -71,6 +84,10 @@ def test_constant_weights_against_builtin():
 
 
 def test_optimizer_with_synthetic_data():
+    """Run a LogisticFalkon optimizer smoke test with analytic target slope.
+
+    :returns: ``None``.
+    """
     print("\n[2] LogisticFalkon optimizer smoke test")
 
     torch.manual_seed(1)
@@ -80,47 +97,27 @@ def test_optimizer_with_synthetic_data():
     n_ref = 1500
     n_data = 1500
 
-    # Reference central distribution:
-    #   R0 = Normal(0, 1)
-    #
-    # Reweighted reference:
-    #   Rnu = Normal(nu, 1)
-    #
-    # Data:
-    #   D = Normal(mu, 1)
-    #
-    # The ideal learned log-ratio should be approximately
-    #   f*(x) = log p_D(x) / p_Rnu(x)
-    #        = (mu - nu) x - 0.5 * (mu^2 - nu^2)
-    #
-    # With mu=1.5 and nu=0.5, expected slope is 1.0.
-
     nu = 0.5
     mu = 1.5
 
     x_ref = torch.randn(n_ref, 1, dtype=dtype)
     x_data = torch.randn(n_data, 1, dtype=dtype) + mu
 
-    # Positive nuisance/event weights for reference events:
-    # r(x;nu) = p_N(nu,1)(x) / p_N(0,1)(x)
     w_ref = torch.exp(nu * x_ref - 0.5 * nu**2)
-
-    # Data events are unweighted.
     w_data = torch.ones(n_data, 1, dtype=dtype)
 
     y_ref = torch.zeros(n_ref, 1, dtype=dtype)
     y_data = torch.ones(n_data, 1, dtype=dtype)
 
-    X = torch.cat([x_ref, x_data], dim=0)
+    x_pooled = torch.cat([x_ref, x_data], dim=0)
     y01 = torch.cat([y_ref, y_data], dim=0)
     active_weight = torch.cat([w_ref, w_data], dim=0)
 
-    # Optional but useful: keep regularization scale comparable.
     active_weight = active_weight / active_weight.mean()
 
     assert torch.all(active_weight > 0)
 
-    Y_encoded = encode_signed_weights(y01, active_weight)
+    y_encoded = encode_signed_weights(y01, active_weight)
 
     kernel = falkon.kernels.GaussianKernel(1.5)
     loss = EventWeightedCrossEntropyLoss(kernel)
@@ -137,14 +134,13 @@ def test_optimizer_with_synthetic_data():
         options=options,
     )
 
-    model.fit(X, Y_encoded)
+    model.fit(x_pooled, y_encoded)
 
     grid = torch.linspace(-2.0, 4.0, 200, dtype=dtype).reshape(-1, 1)
     pred = model.predict(grid).detach().reshape(-1)
 
     true_f = ((mu - nu) * grid - 0.5 * (mu**2 - nu**2)).reshape(-1)
 
-    # Fit learned f(x) ≈ slope*x + intercept.
     x = grid.reshape(-1)
 
     x_centered = x - x.mean()

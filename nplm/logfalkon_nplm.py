@@ -1,10 +1,9 @@
-from __future__ import annotations
+"""Train and evaluate the LogisticFalkon implementation of the NPLM statistic."""
 
 import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -16,24 +15,17 @@ from falkon.kernels import GaussianKernel
 from falkon.options import FalkonOptions
 
 
-# ---------------- type aliases ----------------
-
-ConfigLike = Dict[str, Any]
-ConfigInput = Union[ConfigLike, str, Path]
-
+#########################################################################################################
+# Public model wrapper
 
 class LogFalkonNPLM:
-    """
-    NPLM test via LogisticFalkon classifier.
+    """NPLM test statistic computed with a LogisticFalkon classifier.
 
-    Input API:
-      - X: (N, d) pooled sample
-      - y: (N,) or (N,1) labels in {0, 1}
-           0 = reference (count N_R)
-           1 = data      (count N_D)
+    :param config: Model configuration dictionary or path to a JSON/YAML file.
+    :param output_path: Optional directory created before fitting.
     """
 
-    DEFAULT_CONFIG: ConfigLike = {
+    DEFAULT_CONFIG = {
         "sigma": None,
         "M": "sqrt",
         "lambda": [1e-6],
@@ -48,7 +40,12 @@ class LogFalkonNPLM:
         "verbose": 1,
     }
 
-    def __init__(self, config: Optional[ConfigInput] = None, output_path: Optional[Union[str, Path]] = None):
+    def __init__(self, config=None, output_path=None):
+        """Initialize the NPLM wrapper.
+
+        :param config: Model configuration dictionary or config-file path.
+        :param output_path: Optional output directory path.
+        """
         self.output_path = str(output_path) if output_path is not None else None
         if self.output_path is not None:
             os.makedirs(self.output_path, exist_ok=True)
@@ -56,23 +53,33 @@ class LogFalkonNPLM:
         cfg_dict = self._load_config(config) if config is not None else {}
         self.config = self._resolve_config(cfg_dict)
 
-        self.model: Optional[LogisticFalkon] = None
-        self.N_R: Optional[int] = None
-        self.N_D: Optional[int] = None
-        self.NR: Optional[float] = None
-        self.weight: Optional[float] = None
+        self.model = None
+        self.N_R = None
+        self.N_D = None
+        self.NR = None
+        self.weight = None
 
         self._log("\n[NPLM] Initialized with config:")
         if self.config.get("verbose", 0) > 0:
             for k, v in self.config.items():
                 print(f"  {k}: {v}")
 
-    def _log(self, msg: str) -> None:
+    def _log(self, msg):
+        """Print a message when verbose logging is enabled.
+
+        :param msg: Message to print.
+        :returns: ``None``.
+        """
         if int(self.config.get("verbose", 0)) > 0:
             print(msg)
 
     @staticmethod
-    def _load_config(config: ConfigInput) -> ConfigLike:
+    def _load_config(config):
+        """Load a model configuration from a dictionary or JSON/YAML file.
+
+        :param config: Dictionary or path-like object.
+        :returns: Configuration dictionary.
+        """
         if isinstance(config, dict):
             return dict(config)
 
@@ -95,7 +102,12 @@ class LogFalkonNPLM:
         raise ValueError("Config must be dict, .json, .yml or .yaml")
 
     @classmethod
-    def _resolve_config(cls, user_cfg: ConfigLike) -> ConfigLike:
+    def _resolve_config(cls, user_cfg):
+        """Merge user configuration with defaults and validate required values.
+
+        :param user_cfg: User-specified configuration dictionary.
+        :returns: Resolved configuration dictionary.
+        """
         cfg = dict(cls.DEFAULT_CONFIG)
         cfg.update(user_cfg)
 
@@ -120,13 +132,20 @@ class LogFalkonNPLM:
         return cfg
 
     @staticmethod
-    def estimate_sigma_median(X: np.ndarray, max_points: int = 5000, seed: Optional[int] = None) -> float:
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError("X must be 2D array (N, d)")
-        X = np.ascontiguousarray(X)
+    def estimate_sigma_median(X, max_points=5000, seed=None):
+        """Estimate the Gaussian kernel width with the median pairwise distance.
 
-        n = X.shape[0]
+        :param X: Input sample with shape ``(n_samples, n_features)``.
+        :param max_points: Maximum number of points used by the heuristic.
+        :param seed: Optional RNG seed used when subsampling.
+        :returns: Positive finite median-distance estimate.
+        """
+        x = np.asarray(X)
+        if x.ndim != 2:
+            raise ValueError("X must be 2D array (N, d)")
+        x = np.ascontiguousarray(x)
+
+        n = x.shape[0]
         if n < 2:
             raise ValueError("Need at least 2 points to estimate sigma")
 
@@ -137,19 +156,28 @@ class LogFalkonNPLM:
         if n > max_points:
             rng = np.random.default_rng(None if seed is None else int(seed))
             idx = rng.choice(n, size=max_points, replace=False)
-            X = X[idx]
+            x = x[idx]
 
-        d = pdist(X)
-        sigma = float(np.median(d))
+        distances = pdist(x)
+        sigma = float(np.median(distances))
         if not np.isfinite(sigma) or sigma <= 0:
             raise ValueError(f"Median heuristic returned invalid sigma={sigma}. Consider standardizing inputs.")
         return sigma
 
     @staticmethod
-    def _sqrt_rule(n: int) -> int:
+    def _sqrt_rule(n):
+        """Return the square-root rule for the number of Nystrom centers.
+
+        :param n: Number of input points.
+        :returns: Integer square-root value.
+        """
         return int(np.sqrt(n))
 
-    def _set_seed(self) -> None:
+    def _set_seed(self):
+        """Set NumPy and Torch global RNG seeds from the resolved config.
+
+        :returns: ``None``.
+        """
         seed = self.config.get("seed", None)
         if seed is None:
             self._log("[NPLM] No seed specified (non-reproducible run)")
@@ -162,7 +190,12 @@ class LogFalkonNPLM:
             torch.cuda.manual_seed_all(seed)
 
     @staticmethod
-    def _normalize_labels_01(y: np.ndarray) -> np.ndarray:
+    def _normalize_labels_01(y):
+        """Validate and flatten binary labels.
+
+        :param y: Labels with shape ``(n_samples,)`` or ``(n_samples, 1)``.
+        :returns: Float labels with shape ``(n_samples,)``.
+        """
         y = np.asarray(y)
         if y.ndim == 2 and y.shape[1] == 1:
             y = y.reshape(-1)
@@ -173,27 +206,36 @@ class LogFalkonNPLM:
             raise ValueError(f"y must contain only 0 and 1; got unique values {vals}")
         return y.astype(np.float64, copy=False)
 
-    def _resolve_sizes_from_labels(self, y01: np.ndarray) -> None:
-        N_R = int(np.sum(y01 == 0))
-        N_D = int(np.sum(y01 == 1))
+    def _resolve_sizes_from_labels(self, y01):
+        """Resolve class counts and loss weight from binary labels.
 
-        if N_R <= 0 or N_D <= 0:
-            raise ValueError(f"Need both classes present: got N_R={N_R}, N_D={N_D}")
+        :param y01: Flattened labels with shape ``(n_samples,)``.
+        :returns: ``None``.
+        """
+        n_ref = int(np.sum(y01 == 0))
+        n_data = int(np.sum(y01 == 1))
 
-        if self.config["N_R"] is not None and int(self.config["N_R"]) != N_R:
-            raise ValueError(f"Config N_R={self.config['N_R']} but labels imply N_R={N_R}")
-        if self.config["N_D"] is not None and int(self.config["N_D"]) != N_D:
-            raise ValueError(f"Config N_D={self.config['N_D']} but labels imply N_D={N_D}")
+        if n_ref <= 0 or n_data <= 0:
+            raise ValueError(f"Need both classes present: got N_R={n_ref}, N_D={n_data}")
 
-        self.N_R = N_R
-        self.N_D = N_D
+        if self.config["N_R"] is not None and int(self.config["N_R"]) != n_ref:
+            raise ValueError(f"Config N_R={self.config['N_R']} but labels imply N_R={n_ref}")
+        if self.config["N_D"] is not None and int(self.config["N_D"]) != n_data:
+            raise ValueError(f"Config N_D={self.config['N_D']} but labels imply N_D={n_data}")
+
+        self.N_R = n_ref
+        self.N_D = n_data
         self.NR = float(self.config["NR"])
         self.weight = self.NR / float(self.N_R)
 
         self._log(f"[NPLM] Label counts: N_R={self.N_R} (y=0), N_D={self.N_D} (y=1)")
         self._log(f"[NPLM] weight = NR/N_R = {self.NR}/{self.N_R} = {self.weight:.6g}")
 
-    def build_model(self) -> None:
+    def build_model(self):
+        """Build the LogisticFalkon classifier for the current split.
+
+        :returns: ``None``.
+        """
         if self.N_R is None or self.N_D is None or self.weight is None:
             raise RuntimeError("Internal state not initialized. Call compute_statistic() first.")
 
@@ -207,16 +249,16 @@ class LogFalkonNPLM:
 
         kernel = GaussianKernel(sigma)
 
-        M_cfg = self.config["M"]
-        if isinstance(M_cfg, str):
-            if M_cfg != "sqrt":
+        m_cfg = self.config["M"]
+        if isinstance(m_cfg, str):
+            if m_cfg != "sqrt":
                 raise ValueError("config['M'] must be an int or the string 'sqrt'")
-            M = self._sqrt_rule(self.N_R + self.N_D)
+            m_centers = self._sqrt_rule(self.N_R + self.N_D)
         else:
-            M = int(M_cfg)
+            m_centers = int(m_cfg)
 
         self._log(f"[NPLM] Using fixed sigma = {sigma:.6g}")
-        self._log(f"[NPLM] Nyström centers M = {M}")
+        self._log(f"[NPLM] Nyström centers M = {m_centers}")
 
         opts = FalkonOptions(
             cg_tolerance=float(self.config["cg_tol"]),
@@ -229,14 +271,21 @@ class LogFalkonNPLM:
             kernel=kernel,
             penalty_list=self.config["lambda"],
             iter_list=self.config["iter"],
-            M=M,
+            M=m_centers,
             options=opts,
             loss=WeightedCrossEntropyLoss(kernel, neg_weight=float(self.weight)),
             seed=self.config.get("seed", None),
         )
 
     @staticmethod
-    def _compute_t(scores: torch.Tensor, y01: np.ndarray, weight: float) -> float:
+    def _compute_t(scores, y01, weight):
+        """Compute the NPLM test statistic from classifier scores.
+
+        :param scores: Model scores with shape ``(n_samples,)`` or ``(n_samples, 1)``.
+        :param y01: Flattened labels with shape ``(n_samples,)``.
+        :param weight: Reference-event weight ``NR / N_R``.
+        :returns: Scalar NPLM statistic.
+        """
         if scores.ndim == 2 and scores.shape[1] == 1:
             scores = scores.reshape(-1)
 
@@ -250,32 +299,39 @@ class LogFalkonNPLM:
         t = 2.0 * (diff + torch.sum(s_data))
         return float(t.item())
 
-    def compute_statistic(self, X: np.ndarray, y: np.ndarray, return_details: bool = False):
-        X = np.asarray(X, dtype=np.float64)
-        if X.ndim != 2:
+    def compute_statistic(self, X, y, return_details=False):
+        """Train the NPLM classifier and return the test statistic.
+
+        :param X: Pooled sample with shape ``(n_samples, n_features)``.
+        :param y: Binary labels with shape ``(n_samples,)`` or ``(n_samples, 1)``.
+        :param return_details: If true, also return diagnostics and scores.
+        :returns: Statistic, or ``(statistic, details)`` when requested.
+        """
+        x = np.asarray(X, dtype=np.float64)
+        if x.ndim != 2:
             raise ValueError("X must be 2D array (N, d)")
-        X = np.ascontiguousarray(X)
+        x = np.ascontiguousarray(x)
 
         y01 = self._normalize_labels_01(y)
-        if y01.shape[0] != X.shape[0]:
+        if y01.shape[0] != x.shape[0]:
             raise ValueError("X and y must have the same number of rows")
 
         self._log("\n[NPLM] Starting computation of test statistic")
         self._set_seed()
         self._resolve_sizes_from_labels(y01)
 
-        X_t = torch.from_numpy(X)
+        x_t = torch.from_numpy(x)
         y_t = torch.from_numpy(y01.reshape(-1, 1)).to(dtype=torch.float64)
 
         self.build_model()
 
         self._log("[NPLM] Training LogisticFalkon...")
         t0 = time.time()
-        self.model.fit(X_t, y_t)
+        self.model.fit(x_t, y_t)
         train_time = time.time() - t0
         self._log(f"[NPLM] Training finished in {train_time:.2f} s")
 
-        scores = self.model.predict(X_t)
+        scores = self.model.predict(x_t)
         t = self._compute_t(scores, y01, float(self.weight))
 
         self._log(f"[NPLM] Test statistic t = {t:.6g}")

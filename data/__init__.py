@@ -1,3 +1,8 @@
+"""Public data-generation and preprocessing helpers."""
+
+#########################################################################################################
+# Public exports
+
 from .synthetic import sample_ref_exp, sample_signal_gauss, make_data_sample_poisson
 from .datasets import build_pooled_sample
 from .preprocessing import standardize_dataset
