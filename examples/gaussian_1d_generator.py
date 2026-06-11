@@ -2,14 +2,22 @@
 
 import argparse
 import json
+import sys
 from collections import namedtuple
 from pathlib import Path
 
 import numpy as np
 
+#########################################################################################################
+# Import path setup
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from data import build_pooled_sample, make_data_sample_poisson, sample_ref_exp
 from nplm import LogFalkonNPLM
-from nplm.plotting import plot_nplm_distributions
+from nplm.plotting import emp_pvalues_mc, plot_nplm_distributions, z_from_p
 
 
 #########################################################################################################
@@ -204,6 +212,19 @@ def save_results(*, output_dir, summary, null_result, alt_result):
     return output_path
 
 
+def alternative_quantile_z_scores(null_statistics, alt_statistics):
+    """Compute empirical Z-scores at alternative statistic quantiles.
+
+    :param null_statistics: Null statistics with shape ``(n_null,)``.
+    :param alt_statistics: Alternative statistics with shape ``(n_alt,)``.
+    :returns: Pair ``(quantile_levels, z_scores)`` with shape ``(3,)``.
+    """
+    quantile_levels = np.array([0.16, 0.50, 0.84], dtype=np.float64)
+    alt_t_quantiles = np.quantile(alt_statistics, quantile_levels)
+    p_values = emp_pvalues_mc(null_statistics, alt_t_quantiles)
+    return quantile_levels, z_from_p(p_values)
+
+
 def print_summary(null_result, alt_result):
     """Print a compact summary of null and alternative toy statistics.
 
@@ -215,11 +236,17 @@ def print_summary(null_result, alt_result):
     print("--------------------------")
     print(f"null toys: {len(null_result.statistics)}")
     print(f"alt toys:  {len(alt_result.statistics)}")
-    print(f"null mean t: {np.mean(null_result.statistics):.6g}")
-    print(f"alt mean t:  {np.mean(alt_result.statistics):.6g}")
 
-    q16, q50, q84 = np.quantile(alt_result.statistics, [0.16, 0.50, 0.84])
-    print(f"alt t quantiles [16%, 50%, 84%]: [{q16:.6g}, {q50:.6g}, {q84:.6g}]")
+    _, z_scores = alternative_quantile_z_scores(
+        null_result.statistics,
+        alt_result.statistics,
+    )
+    z16, z50, z84 = z_scores
+    print(
+        "alt empirical Z at t quantiles [16%, 50%, 84%]: "
+        f"[{z16:.3f}, {z50:.3f}, {z84:.3f}]"
+    )
+    print(f"median empirical Z: {z50:.3f} (-{z50 - z16:.3f}/+{z84 - z50:.3f})")
 
 
 def maybe_plot(*, output_dir, null_result, alt_result, make_plot):
@@ -258,16 +285,16 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--output-dir", type=Path, default=Path("results_gaussian_1d"))
 
-    parser.add_argument("--n-reference", type=positive_int, default=20_000)
-    parser.add_argument("--expected-background", type=positive_float, default=2_000.0)
-    parser.add_argument("--expected-signal", type=nonnegative_float, default=10.0)
+    parser.add_argument("--n-reference", type=positive_int, default=200_000)
+    parser.add_argument("--expected-background", type=positive_float, default=2_000)
+    parser.add_argument("--expected-signal", type=nonnegative_float, default=10)
     parser.add_argument("--n-null", type=positive_int, default=10)
     parser.add_argument("--n-alt", type=positive_int, default=10)
 
     parser.add_argument("--sigma", type=positive_float, default=0.3)
-    parser.add_argument("--nystrom-centers", type=positive_int, default=1_000)
+    parser.add_argument("--nystrom-centers", type=positive_int, default=3_000)
     parser.add_argument("--penalty", type=positive_float, default=1e-10)
-    parser.add_argument("--iterations", type=positive_int, default=20_000)
+    parser.add_argument("--iterations", type=positive_int, default=1_000_000)
     parser.add_argument("--cg-tol", type=positive_float, default=np.sqrt(1e-7))
     parser.add_argument("--keops", choices=("yes", "no"), default="no")
     parser.add_argument("--model-verbose", type=int, default=0)
