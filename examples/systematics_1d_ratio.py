@@ -7,6 +7,9 @@ from pathlib import Path
 import numpy as np
 
 
+#########################################################################################################
+# Import path setup
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -18,7 +21,14 @@ from nplm_systematics.toys import (
 )
 
 
+#########################################################################################################
+# CLI helpers
+
 def parse_args():
+    """Parse command-line arguments.
+
+    :returns: Parsed argument namespace.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n-central", type=int, default=4000)
     parser.add_argument("--n-varied", type=int, default=4000)
@@ -42,12 +52,24 @@ def parse_args():
 
 
 def parse_m(value):
+    """Parse the Falkon Nyström-center argument.
+
+    :param value: Input value, either ``"sqrt"`` or an integer-like string.
+    :returns: ``"sqrt"`` or an integer.
+    """
     if isinstance(value, str) and value == "sqrt":
         return value
     return int(value)
 
 
+#########################################################################################################
+# Main example
+
 def main():
+    """Run the one-dimensional nuisance-ratio validation.
+
+    :returns: ``None``.
+    """
     args = parse_args()
     rng = np.random.default_rng(args.seed)
 

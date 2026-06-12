@@ -1,20 +1,20 @@
 """Analytic one-dimensional toys for nuisance-ratio validation."""
 
-from __future__ import annotations
-
-from typing import Optional
-
 import numpy as np
 
 
-def sample_truncated_exponential(
-    n: int,
-    *,
-    rate: float = 8.0,
-    xmax: float = 1.0,
-    rng: Optional[np.random.Generator] = None,
-) -> np.ndarray:
-    """Sample a truncated exponential distribution on ``[0, xmax]``."""
+#########################################################################################################
+# Truncated exponential toy
+
+def sample_truncated_exponential(n, rate=8.0, xmax=1.0, rng=None):
+    """Sample a truncated exponential distribution on ``[0, xmax]``.
+
+    :param n: Number of samples.
+    :param rate: Positive exponential rate.
+    :param xmax: Positive upper truncation point.
+    :param rng: Optional NumPy random generator.
+    :returns: Sample array with shape ``(n,)``.
+    """
     n = int(n)
     if n < 0:
         raise ValueError("n must be non-negative")
@@ -31,8 +31,14 @@ def sample_truncated_exponential(
     return -(1.0 / rate) * np.log(1.0 - u * z)
 
 
-def nuisance_rate(nu: float, *, rate0: float = 8.0, rate_log_step: float = 0.08) -> float:
-    """Map a standardized nuisance value to a positive exponential rate."""
+def nuisance_rate(nu, rate0=8.0, rate_log_step=0.08):
+    """Map a standardized nuisance value to a positive exponential rate.
+
+    :param nu: Scalar nuisance value.
+    :param rate0: Central exponential rate.
+    :param rate_log_step: Log-rate shift per nuisance unit.
+    :returns: Positive nuisance-shifted rate.
+    """
     rate0 = float(rate0)
     rate_log_step = float(rate_log_step)
     if not np.isfinite(rate0) or rate0 <= 0:
@@ -43,15 +49,23 @@ def nuisance_rate(nu: float, *, rate0: float = 8.0, rate_log_step: float = 0.08)
 
 
 def sample_exponential_nuisance(
-    n: int,
-    nu: float,
-    *,
-    rate0: float = 8.0,
-    rate_log_step: float = 0.08,
-    xmax: float = 1.0,
-    rng: Optional[np.random.Generator] = None,
-) -> np.ndarray:
-    """Sample the truncated exponential toy at nuisance value ``nu``."""
+    n,
+    nu,
+    rate0=8.0,
+    rate_log_step=0.08,
+    xmax=1.0,
+    rng=None,
+):
+    """Sample the truncated exponential toy at nuisance value ``nu``.
+
+    :param n: Number of samples.
+    :param nu: Scalar nuisance value.
+    :param rate0: Central exponential rate.
+    :param rate_log_step: Log-rate shift per nuisance unit.
+    :param xmax: Positive upper truncation point.
+    :param rng: Optional NumPy random generator.
+    :returns: Sample array with shape ``(n,)``.
+    """
     return sample_truncated_exponential(
         n,
         rate=nuisance_rate(nu, rate0=rate0, rate_log_step=rate_log_step),
@@ -60,8 +74,17 @@ def sample_exponential_nuisance(
     )
 
 
-def truncated_exponential_logpdf(x: np.ndarray, *, rate: float, xmax: float = 1.0) -> np.ndarray:
-    """Evaluate the normalized truncated-exponential log-density."""
+#########################################################################################################
+# Analytic density and nuisance response
+
+def truncated_exponential_logpdf(x, rate, xmax=1.0):
+    """Evaluate the normalized truncated-exponential log-density.
+
+    :param x: Evaluation points.
+    :param rate: Positive exponential rate.
+    :param xmax: Positive upper truncation point.
+    :returns: Log-density values with the same shape as ``x``.
+    """
     x_arr = np.asarray(x, dtype=np.float64)
     rate = float(rate)
     xmax = float(xmax)
@@ -80,14 +103,21 @@ def truncated_exponential_logpdf(x: np.ndarray, *, rate: float, xmax: float = 1.
 
 
 def truncated_exponential_log_ratio(
-    x: np.ndarray,
-    nu: float,
-    *,
-    rate0: float = 8.0,
-    rate_log_step: float = 0.08,
-    xmax: float = 1.0,
-) -> np.ndarray:
-    """Analytic ``log p(x | nu) / p(x | 0)`` for the toy."""
+    x,
+    nu,
+    rate0=8.0,
+    rate_log_step=0.08,
+    xmax=1.0,
+):
+    """Evaluate analytic ``log p(x | nu) / p(x | 0)`` for the toy.
+
+    :param x: Evaluation points.
+    :param nu: Scalar nuisance value.
+    :param rate0: Central exponential rate.
+    :param rate_log_step: Log-rate shift per nuisance unit.
+    :param xmax: Positive upper truncation point.
+    :returns: Log-ratio values with the same shape as ``x``.
+    """
     rate_nu = nuisance_rate(nu, rate0=rate0, rate_log_step=rate_log_step)
     return (
         truncated_exponential_logpdf(x, rate=rate_nu, xmax=xmax)
@@ -96,13 +126,19 @@ def truncated_exponential_log_ratio(
 
 
 def truncated_exponential_log_ratio_derivative(
-    x: np.ndarray,
-    *,
-    rate0: float = 8.0,
-    rate_log_step: float = 0.08,
-    xmax: float = 1.0,
-) -> np.ndarray:
-    """Analytic derivative of ``log p(x | nu) / p(x | 0)`` at ``nu = 0``."""
+    x,
+    rate0=8.0,
+    rate_log_step=0.08,
+    xmax=1.0,
+):
+    """Evaluate the derivative of the analytic log-ratio at ``nu = 0``.
+
+    :param x: Evaluation points.
+    :param rate0: Central exponential rate.
+    :param rate_log_step: Log-rate shift per nuisance unit.
+    :param xmax: Positive upper truncation point.
+    :returns: Response values with the same shape as ``x``.
+    """
     x_arr = np.asarray(x, dtype=np.float64)
     rate0 = float(rate0)
     rate_log_step = float(rate_log_step)

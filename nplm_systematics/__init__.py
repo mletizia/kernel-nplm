@@ -4,6 +4,9 @@ This package is intentionally separate from :mod:`nplm` while the nuisance
 modeling strategy is being developed.
 """
 
+#########################################################################################################
+# Public exports
+
 from .falkon_ratio import FalkonLogRatioEstimator, FalkonRatioConfig
 from .finite_difference import FiniteDifferenceMorpher
 from .morphing import LinearLogRMorphingCache
