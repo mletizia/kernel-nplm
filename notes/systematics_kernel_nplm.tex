@@ -1,0 +1,151 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+
+\title{Kernel Modeling of Nuisance Ratios for Systematics-Aware NPLM}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Goal}
+
+The baseline kernel NPLM learns a flexible log-density ratio between data and a
+central reference sample. With nuisance parameters, the null hypothesis is
+composite. We write the nuisance-deformed reference density as
+\begin{equation}
+  n(x \mid R_\nu) = r(x;\nu)\,n(x \mid R_0),
+\end{equation}
+where $R_0$ is the central reference. The full alternative model can then be
+written as
+\begin{equation}
+  h(x;\alpha,\nu) = f_K(x;\alpha) + \log r(x;\nu),
+\end{equation}
+where $f_K$ is the residual kernel NPLM component and $\log r(x;\nu)$ is the
+systematic deformation.
+
+The first implementation step is to model $\log r(x;\nu)$ with kernel methods
+without modifying the existing baseline NPLM implementation.
+
+\section{Option A: Finite-Difference Falkon Morphing}
+
+Assume that nuisance-varied Monte Carlo samples are available at
+$\nu=+\epsilon$ and $\nu=-\epsilon$, together with a central sample at $\nu=0$.
+Train two LogisticFalkon density-ratio estimators:
+\begin{align}
+  g_+(x) &\simeq \log \frac{p(x\mid +\epsilon)}{p(x\mid 0)}, \\
+  g_-(x) &\simeq \log \frac{p(x\mid -\epsilon)}{p(x\mid 0)}.
+\end{align}
+The local nuisance response is then estimated by the centered finite
+difference
+\begin{equation}
+  \delta(x) =
+  \frac{g_+(x)-g_-(x)}{2\epsilon}.
+\end{equation}
+For one nuisance parameter, the morphing model is
+\begin{equation}
+  \log r(x;\nu) \simeq \nu\,\delta(x).
+\end{equation}
+For several independent nuisance directions, the first-order extension is
+\begin{equation}
+  \log r(x;\nu) \simeq \sum_a \nu_a\,\delta_a(x).
+\end{equation}
+
+This is the closest kernel analogue of the neural-network nuisance setup:
+the nuisance log-ratio is a separate component, while the final NPLM fit learns
+only the residual discrepancy $f_K(x)$.
+
+\subsection{Classifier Weighting}
+
+For central samples $x\sim p_0$ and varied samples $x\sim p_\nu$, a weighted
+binary logistic classifier has population minimizer
+\begin{equation}
+  f^*(x)=
+  \log \frac{N_\nu p_\nu(x)}
+            {w_0 N_0 p_0(x)}.
+\end{equation}
+To learn the normalized shape ratio $p_\nu/p_0$, choose
+\begin{equation}
+  w_0 = \frac{N_\nu}{N_0}.
+\end{equation}
+If the nuisance also changes the expected total rate by a factor
+$\rho_\nu=N_\nu^{\mathrm{expected}}/N_0^{\mathrm{expected}}$, choose
+\begin{equation}
+  w_0 = \frac{N_\nu}{N_0\,\rho_\nu},
+\end{equation}
+so that the score estimates
+\begin{equation}
+  \log \rho_\nu \frac{p_\nu(x)}{p_0(x)}.
+\end{equation}
+
+\subsection{Caching}
+
+Falkon does not currently provide a simple native model serialization path.
+For the profiled NPLM statistic this is not a blocker, because the likelihood
+only needs repeated evaluations of $\log r(x;\nu)$ on fixed event arrays.
+After training the ratio estimators, cache
+\begin{align}
+  \delta_{\mathrm{ref},i} &= \delta(x^{\mathrm{ref}}_i), \\
+  \delta_{\mathrm{data},j} &= \delta(x^{\mathrm{data}}_j),
+\end{align}
+and save these arrays as a NumPy archive. Profiling then evaluates
+\begin{align}
+  \log r(x^{\mathrm{ref}}_i;\nu) &= \nu\,\delta_{\mathrm{ref},i}, \\
+  \log r(x^{\mathrm{data}}_j;\nu) &= \nu\,\delta_{\mathrm{data},j}.
+\end{align}
+This makes the nuisance layer cheap and independent of Falkon model persistence.
+
+\section{One-Dimensional Validation}
+
+The first validation toy uses a truncated exponential density on $[0,x_{\max}]$,
+\begin{equation}
+  p(x\mid \lambda) =
+  \frac{\lambda e^{-\lambda x}}
+       {1-e^{-\lambda x_{\max}}}.
+\end{equation}
+The nuisance changes the rate as
+\begin{equation}
+  \lambda(\nu)=\lambda_0 e^{a\nu}.
+\end{equation}
+The analytic response at $\nu=0$ is
+\begin{equation}
+  \delta_{\mathrm{true}}(x)
+  =
+  a - a\lambda_0 x
+  - a\lambda_0
+    \frac{x_{\max} e^{-\lambda_0 x_{\max}}}
+         {1-e^{-\lambda_0 x_{\max}}}.
+\end{equation}
+The implementation compares the Falkon finite-difference estimate
+$\delta(x)$ against this analytic curve.
+
+\section{Option B: Conditional Kernel Ratio}
+
+An alternative is to train a single conditional model on augmented inputs
+\begin{equation}
+  z=(x,\nu)
+\end{equation}
+so that
+\begin{equation}
+  g(x,\nu) \simeq \log \frac{p(x\mid \nu)}{p(x\mid 0)}.
+\end{equation}
+This can represent nonlinear nuisance dependence without a Taylor expansion.
+However, it requires careful kernel choices in the joint $(x,\nu)$ space,
+adequate coverage of the nuisance grid, and validation of interpolation in
+$\nu$. For this reason the first implementation uses option A.
+
+\section{Current Implementation Boundary}
+
+The initial code lives in a separate \texttt{nplm\_systematics} package. It
+does not modify the baseline \texttt{nplm.LogFalkonNPLM} class. The current
+scope is only the nuisance-ratio model
+\begin{equation}
+  \log r(x;\nu),
+\end{equation}
+not yet the full profiled statistic $t=\tau-\Delta$.
+
+\end{document}
