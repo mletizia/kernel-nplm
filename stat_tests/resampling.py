@@ -42,6 +42,9 @@ NPLMResamplingResult = namedtuple(
         "n_alternative",
         "n_ref",
         "n_data",
+        "observed_data_count",
+        "null_data_counts",
+        "alternative_data_counts",
         "null_sampling",
         "single_data_mode",
         "seed",
@@ -49,6 +52,7 @@ NPLMResamplingResult = namedtuple(
         "null_seeds",
         "alternative_seeds",
         "resample_nystrom",
+        "poisson_fluctuate_n_data",
         "p_value_resolution",
         "reference_null_factor",
         "reference_alt_factor",
@@ -71,6 +75,7 @@ def nplm_resampling_test(
     n_null=100,
     n_alternative=None,
     null_sampling="disjoint",
+    poisson_fluctuate_n_data=False,
     seed=0,
     resample_nystrom=True,
     return_null=False,
@@ -89,6 +94,7 @@ def nplm_resampling_test(
     :param n_null: Number of null toys.
     :param n_alternative: Number of alternative toys; defaults to ``n_null`` outside single-data mode.
     :param null_sampling: Null mode, either ``"disjoint"`` or ``"independent"``.
+    :param poisson_fluctuate_n_data: If true, draw each resampled toy data count from ``Poisson(n_data)``.
     :param seed: Local RNG seed controlling resampling and per-fit model seeds.
     :param resample_nystrom: If true, draw a fresh model seed for each fit.
     :param return_null: If true, return the empirical null statistics.
@@ -194,14 +200,29 @@ def nplm_resampling_test(
 
     try:
         null_statistics = np.empty(n_null, dtype=np.float64)
+        null_data_counts = np.empty(n_null, dtype=np.int64)
         for idx, model_seed in enumerate(null_seeds):
+            n_data_null = _draw_resampled_data_count(
+                n_data=n_data,
+                rng=rng,
+                poisson_fluctuate_n_data=poisson_fluctuate_n_data,
+            )
+            _validate_resampled_data_count(
+                n_ref_pool=n_ref_pool,
+                n_data_pool=n_data_pool,
+                n_ref=n_ref,
+                n_data=n_data_null,
+                null_sampling=null_sampling,
+                sampling_context="null",
+            )
             x_null_ref, x_null_data = _sample_null_pair(
                 x_ref_2d=x_ref_2d,
                 n_ref=n_ref,
-                n_data=n_data,
+                n_data=n_data_null,
                 rng=rng,
                 null_sampling=null_sampling,
             )
+            null_data_counts[idx] = n_data_null
             null_statistics[idx] = _compute_pair_statistic(
                 x_ref=x_null_ref,
                 x_data=x_null_data,
@@ -211,8 +232,10 @@ def nplm_resampling_test(
             )
 
         t_obs_value = None
+        observed_data_count = None
         if single_data_mode:
             ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
+            observed_data_count = int(x_data_2d.shape[0])
             t_obs_value = _compute_pair_statistic(
                 x_ref=x_ref_2d[ref_idx],
                 x_data=x_data_2d,
@@ -222,11 +245,27 @@ def nplm_resampling_test(
             )
 
         alternative_statistics = None
+        alternative_data_counts = np.empty(0, dtype=np.int64)
         if n_alt_effective > 0:
             alternative_statistics = np.empty(n_alt_effective, dtype=np.float64)
+            alternative_data_counts = np.empty(n_alt_effective, dtype=np.int64)
             for idx, model_seed in enumerate(alternative_seeds):
+                n_data_alt = _draw_resampled_data_count(
+                    n_data=n_data,
+                    rng=rng,
+                    poisson_fluctuate_n_data=poisson_fluctuate_n_data,
+                )
+                _validate_resampled_data_count(
+                    n_ref_pool=n_ref_pool,
+                    n_data_pool=n_data_pool,
+                    n_ref=n_ref,
+                    n_data=n_data_alt,
+                    null_sampling=null_sampling,
+                    sampling_context="alternative",
+                )
                 ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
-                data_idx = rng.choice(n_data_pool, size=n_data, replace=False)
+                data_idx = rng.choice(n_data_pool, size=n_data_alt, replace=False)
+                alternative_data_counts[idx] = n_data_alt
                 alternative_statistics[idx] = _compute_pair_statistic(
                     x_ref=x_ref_2d[ref_idx],
                     x_data=x_data_2d[data_idx],
@@ -277,6 +316,9 @@ def nplm_resampling_test(
         n_alternative=n_alt_effective,
         n_ref=n_ref,
         n_data=n_data,
+        observed_data_count=observed_data_count,
+        null_data_counts=null_data_counts.copy(),
+        alternative_data_counts=alternative_data_counts.copy(),
         null_sampling=null_sampling,
         single_data_mode=single_data_mode,
         seed=None if seed is None else int(seed),
@@ -284,6 +326,7 @@ def nplm_resampling_test(
         null_seeds=null_seeds.copy(),
         alternative_seeds=alternative_seeds.copy(),
         resample_nystrom=bool(resample_nystrom),
+        poisson_fluctuate_n_data=bool(poisson_fluctuate_n_data),
         p_value_resolution=float(1.0 / (n_null + 1.0)),
         reference_null_factor=float(reference_null_factor),
         reference_alt_factor=float(reference_alt_factor),
@@ -387,6 +430,43 @@ def _validate_sampling_feasibility(
         raise RuntimeError("Internal error: alternative toys in single-data mode")
 
 
+def _validate_resampled_data_count(
+    *,
+    n_ref_pool,
+    n_data_pool,
+    n_ref,
+    n_data,
+    null_sampling,
+    sampling_context,
+):
+    """Validate one realized resampled data count.
+
+    :param n_ref_pool: Number of rows in the reference pool.
+    :param n_data_pool: Number of rows in the data pool.
+    :param n_ref: Reference rows per fit.
+    :param n_data: Realized pseudo-data rows for this fit.
+    :param null_sampling: Null resampling mode.
+    :param sampling_context: Human-readable context for errors.
+    :returns: ``None``.
+    """
+    if n_data < 1:
+        raise RuntimeError("Internal error: realized n_data must be positive")
+
+    if sampling_context == "null":
+        if null_sampling == "disjoint" and n_ref + n_data > n_ref_pool:
+            raise ValueError(
+                "Disjoint null sampling requires len(x_ref) >= n_ref + realized n_data; "
+                f"got len(x_ref)={n_ref_pool}, n_ref={n_ref}, realized n_data={n_data}"
+            )
+        return
+
+    if n_data > n_data_pool:
+        raise ValueError(
+            f"Alternative sampling requires len(x_data) >= realized n_data; "
+            f"got len(x_data)={n_data_pool}, realized n_data={n_data}"
+        )
+
+
 def _warn_on_low_sample_factor(
     *,
     factor,
@@ -437,6 +517,24 @@ def _draw_fit_seeds(
     return np.full(n_fits, fixed_seed, dtype=np.int64)
 
 
+def _draw_resampled_data_count(
+    *,
+    n_data,
+    rng,
+    poisson_fluctuate_n_data,
+):
+    """Draw the realized pseudo-data count for one resampled toy.
+
+    :param n_data: Nominal expected pseudo-data count.
+    :param rng: NumPy random generator.
+    :param poisson_fluctuate_n_data: Whether to draw from ``Poisson(n_data)``.
+    :returns: Positive integer data count.
+    """
+    if poisson_fluctuate_n_data:
+        return max(1, int(rng.poisson(n_data)))
+    return int(n_data)
+
+
 def _sample_null_pair(
     *,
     x_ref_2d,
@@ -485,7 +583,10 @@ def _compute_pair_statistic(
         np.ascontiguousarray(x_data, dtype=dtype),
         dtype=dtype,
     )
-    return _compute_nplm_statistic(x=x_pooled, y=y, base_config=base_config, seed=seed)
+    fit_config = dict(base_config)
+    fit_config["N_R"] = int(x_ref.shape[0])
+    fit_config["N_D"] = int(x_data.shape[0])
+    return _compute_nplm_statistic(x=x_pooled, y=y, base_config=fit_config, seed=seed)
 
 
 def _empirical_pvalues(

@@ -147,6 +147,54 @@ test statistic and their empirical p-values/Z-scores against the null.
 The resampling test warns when the available sample pool is less than a factor
 of 10 larger than the requested sampled size.
 
+## Hyperparameter Tuning
+
+Use `nplm_resampling_hyperparameter_scan` to inspect how the null test statistic
+changes across a grid of Falkon penalties and Nystrom-center counts. This
+workflow is built on the same reference-resampling method as
+`nplm_resampling_test`: for each `(lambda, M)` point it draws null toys from the
+reference pool and computes `n_trials` NPLM statistics. It does not select a
+working point automatically.
+
+```python
+from tuning import nplm_resampling_hyperparameter_scan, save_scan_plots
+
+config = {
+    "sigma": sigma,          # fixed before the scan
+    "NR": n_data,
+    "iter": [100_000],
+    "cg_tol": 3.16e-4,
+    "cpu": False,
+    "keops": "yes",
+    "verbose": 0,
+}
+
+scan = nplm_resampling_hyperparameter_scan(
+    x_ref,
+    config,
+    lambda_values=[1e-10, 1e-9, 1e-8],
+    m_values=[500, 1000, 2000],
+    n_ref=20_000,
+    n_data=5_000,
+    n_trials=10,
+    poisson_fluctuate_n_data=True,
+    seed=123,
+    progress=True,
+)
+
+paths = save_scan_plots(scan, "results_tuning")
+print(paths)
+```
+
+The saved plots show the average reference-null test statistic versus `M` for
+each `lambda`, a grid heatmap, and the average training time per toy. Inspect
+these plots to choose the working point yourself. The underlying paper fixes
+`sigma` from reference-distance scales, scans `M` for stability versus cost, and
+takes `lambda` as small as possible while keeping training numerically stable.
+When `poisson_fluctuate_n_data=True`, each resampled null toy draws its realized
+pseudo-data count from `Poisson(n_data)` while `NR` stays fixed as the expected
+count used in the NPLM reference-event weight.
+
 ## Examples
 
 Run the generator-based one-dimensional example:

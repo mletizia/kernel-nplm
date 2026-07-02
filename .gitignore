@@ -209,4 +209,7 @@ __marimo__/
 # Project-local working notes
 coding_guidelines.md
 
+# Generated hyperparameter-tuning outputs
+results_tuning*/
+
 .DS_Store
