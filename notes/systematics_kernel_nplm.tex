@@ -59,6 +59,95 @@ This is the closest kernel analogue of the neural-network nuisance setup:
 the nuisance log-ratio is a separate component, while the final NPLM fit learns
 only the residual discrepancy $f_K(x)$.
 
+\subsection{Four-Point Least-Squares Coefficients}
+
+At a fixed $x$, let $g_i=g(x;\nu_i)$ denote the independently learned Falkon
+log-ratios. A zero-intercept linear fit assumes
+\begin{equation}
+  g_i \simeq \nu_i d_1,
+  \qquad d_1=\delta_1(x),
+\end{equation}
+and minimizes
+\begin{equation}
+  \mathcal{L}_1(d_1)=\sum_i (g_i-\nu_i d_1)^2.
+\end{equation}
+Setting the derivative to zero gives the least-squares slope
+\begin{equation}
+  \widehat{d}_1
+  =\frac{\sum_i \nu_i g_i}{\sum_i \nu_i^2}.
+\end{equation}
+For two symmetric pairs $\nu_i\in\{-b,-a,+a,+b\}$, this becomes
+\begin{equation}
+  \widehat{\delta}_1(x)
+  =
+  \frac{
+    a[g_{+a}(x)-g_{-a}(x)]
+    +b[g_{+b}(x)-g_{-b}(x)]
+  }{2(a^2+b^2)}.
+\end{equation}
+Defining the pairwise centered difference
+\begin{equation}
+  O_h(x)=\frac{g_{+h}(x)-g_{-h}(x)}{2h},
+\end{equation}
+the same result can be written as
+\begin{equation}
+  \widehat{\delta}_1(x)
+  =\frac{a^2 O_a(x)+b^2 O_b(x)}{a^2+b^2}.
+\end{equation}
+For $a=0.10$ and $b=0.15$, the numerical weights are
+\begin{equation}
+  \widehat{\delta}_1(x)
+  \simeq 0.308\,O_{0.10}(x)+0.692\,O_{0.15}(x).
+\end{equation}
+
+At quadratic order, the fitted model is
+\begin{equation}
+  g_i \simeq \nu_i d_1+\frac{\nu_i^2}{2}d_2,
+  \qquad d_2=\delta_2(x).
+\end{equation}
+The corresponding least-squares loss is
+\begin{equation}
+  \mathcal{L}_2(d_1,d_2)
+  =\sum_i
+  \left(g_i-\nu_i d_1-\frac{\nu_i^2}{2}d_2\right)^2.
+\end{equation}
+For symmetric nuisance values, $\sum_i\nu_i^3=0$, so the odd and even
+coefficients decouple. Differentiating with respect to $d_2$ gives
+\begin{equation}
+  \widehat{d}_2
+  =\frac{2\sum_i \nu_i^2 g_i}{\sum_i \nu_i^4}.
+\end{equation}
+For the two symmetric pairs this is
+\begin{equation}
+  \widehat{\delta}_2(x)
+  =
+  \frac{
+    a^2[g_{+a}(x)+g_{-a}(x)]
+    +b^2[g_{+b}(x)+g_{-b}(x)]
+  }{a^4+b^4}.
+\end{equation}
+Defining the pairwise even estimate
+\begin{equation}
+  E_h(x)=\frac{g_{+h}(x)+g_{-h}(x)}{h^2},
+\end{equation}
+one obtains
+\begin{equation}
+  \widehat{\delta}_2(x)
+  =\frac{a^4 E_a(x)+b^4 E_b(x)}{a^4+b^4}.
+\end{equation}
+For $a=0.20$ and $b=0.30$, this gives
+\begin{equation}
+  \widehat{\delta}_2(x)
+  \simeq 0.165\,E_{0.20}(x)+0.835\,E_{0.30}(x).
+\end{equation}
+The current hybrid reconstruction uses the linear coefficient from the smaller
+nuisance points and the quadratic coefficient from the larger points,
+\begin{equation}
+  \widehat{\log r}(x;\nu)
+  =\nu\,\widehat{\delta}_1^{L}(x)
+  +\frac{\nu^2}{2}\widehat{\delta}_2^{Q}(x).
+\end{equation}
+
 \subsection{Classifier Weighting}
 
 For central samples $x\sim p_0$ and varied samples $x\sim p_\nu$, a weighted
