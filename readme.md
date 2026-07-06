@@ -8,6 +8,7 @@ The repository now separates the core model from statistical-test wrappers:
 - `nplm/` contains the core LogisticFalkon NPLM implementation and plotting helpers.
 - `stat_tests/` contains NPLM-based permutation and reference-resampling tests.
 - `data/` contains small data-generation, preprocessing, and pooling utilities.
+- `local-data/` is a git-ignored place for local datasets and large inputs.
 - `examples/` contains runnable examples.
 
 ## Repository Layout
@@ -18,6 +19,7 @@ kernel-nplm/
 │   ├── datasets.py                 # Build pooled reference/data samples and labels
 │   ├── preprocessing.py            # Standardization helpers
 │   └── synthetic.py                # 1D toy generators
+├── local-data/                     # Local datasets; contents are ignored by Git
 ├── examples/
 │   ├── gaussian_1d_generator.py    # Generator-based 1D null/alternative toys
 │   ├── 1DGaussian.py               # Legacy 1D Gaussian example

@@ -209,6 +209,11 @@ __marimo__/
 # Project-local working notes
 coding_guidelines.md
 
+# Local datasets, never committed
+/local-data/*
+!/local-data/.gitignore
+!/local-data/README.md
+
 # Generated hyperparameter-tuning outputs
 results_tuning*/
 
