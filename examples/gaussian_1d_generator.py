@@ -15,22 +15,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from data import build_pooled_sample, make_data_sample_poisson, sample_ref_exp
-from nplm import LogFalkonNPLM
-from nplm.plotting import emp_pvalues_mc, plot_nplm_distributions, z_from_p
+from data import make_data_sample_poisson, sample_ref_exp
+from stat_tests import (
+    nplm_resampling_null, nplm_resampling_alternative, compare_nplm_results,
+)
 
 
 #########################################################################################################
 # Constants and result containers
 
 MAX_MODEL_SEED = 2**32 - 1
-
-
-ToyEnsemble = namedtuple(
-    "ToyEnsemble",
-    ["statistics", "background_counts", "signal_counts", "model_seeds"],
-)
-ToyEnsemble.__doc__ = "Collection of NPLM toy statistics and metadata."
 
 
 RunSummary = namedtuple(
@@ -77,96 +71,31 @@ def make_model_config(args):
     }
 
 
-def compute_statistic(*, x_reference, x_data, base_model_config, model_seed):
-    """Compute one NPLM statistic for a generated reference/data pair.
+def make_sampler(*, n_reference, expected_background, expected_signal,
+                 label="toy", n_toys=100, progress_every=0):
+    """Return a generator callback with the same contract as the pool samplers.
 
-    :param x_reference: Reference sample with shape ``(n_reference, 1)``.
-    :param x_data: Data sample with shape ``(n_data, 1)``.
-    :param base_model_config: Model configuration without the per-toy seed.
-    :param model_seed: Per-toy model seed.
-    :returns: Scalar NPLM statistic.
+    Reference events are generated independently. Metadata records the actual
+    background and signal counts; no preprocessing is fitted inside NPLM.
     """
-    x_pooled, y = build_pooled_sample(x_reference, x_data)
-    model_config = dict(base_model_config)
-    model_config["seed"] = int(model_seed)
+    toy_idx = 0
 
-    nplm = LogFalkonNPLM(model_config)
-    return float(nplm.compute_statistic(x_pooled, y))
-
-
-def run_toy_ensemble(
-    *,
-    label,
-    n_toys,
-    n_reference,
-    data_sampler,
-    base_model_config,
-    rng,
-    progress_every,
-):
-    """Run a set of generator toys and collect their statistics.
-
-    :param label: Progress label printed for this ensemble.
-    :param n_toys: Number of toys to generate.
-    :param n_reference: Reference sample size per toy.
-    :param data_sampler: Callable returning ``(x_data, n_background, n_signal)``.
-    :param base_model_config: Model configuration without the per-toy seed.
-    :param rng: NumPy random generator.
-    :param progress_every: Print progress every this many toys; ``0`` disables progress.
-    :returns: ``ToyEnsemble`` with statistic arrays and toy metadata.
-    """
-    statistics = np.empty(n_toys, dtype=np.float64)
-    background_counts = np.empty(n_toys, dtype=np.int64)
-    signal_counts = np.empty(n_toys, dtype=np.int64)
-    model_seeds = np.empty(n_toys, dtype=np.int64)
-
-    for toy_idx in range(n_toys):
+    def sample(rng):
+        nonlocal toy_idx
         if should_print_progress(toy_idx, n_toys, progress_every):
             print(f"[{label}] toy {toy_idx + 1}/{n_toys}")
-
+        toy_idx += 1
         x_reference = sample_ref_exp(n_reference, rng=rng)
-        x_data, n_background, n_signal = data_sampler(rng)
-        model_seed = int(rng.integers(0, MAX_MODEL_SEED, dtype=np.uint32))
-
-        statistics[toy_idx] = compute_statistic(
-            x_reference=x_reference,
-            x_data=x_data,
-            base_model_config=base_model_config,
-            model_seed=model_seed,
-        )
-        background_counts[toy_idx] = n_background
-        signal_counts[toy_idx] = n_signal
-        model_seeds[toy_idx] = model_seed
-
-    return ToyEnsemble(
-        statistics=statistics,
-        background_counts=background_counts,
-        signal_counts=signal_counts,
-        model_seeds=model_seeds,
-    )
-
-
-def make_data_sampler(*, expected_background, expected_signal):
-    """Create a Poisson data sampler for the configured signal strength.
-
-    :param expected_background: Expected background count.
-    :param expected_signal: Expected signal count.
-    :returns: Callable accepting an RNG and returning sampled data metadata.
-    """
-    def sample_data(rng):
-        """Sample one data toy from the configured generator.
-
-        :param rng: NumPy random generator.
-        :returns: Tuple ``(x_data, n_background, n_signal)``.
-        """
         x_data, _, _, n_background, n_signal = make_data_sample_poisson(
-            NR=expected_background,
-            NS=expected_signal,
-            rng=rng,
+            NR=expected_background, NS=expected_signal, rng=rng,
         )
-        return x_data, n_background, n_signal
+        return x_reference, x_data, {
+            "sampling": "generator", "n_background": n_background,
+            "n_component": n_signal, "expected_background": expected_background,
+            "expected_component": expected_signal,
+        }
 
-    return sample_data
+    return sample
 
 
 def should_print_progress(toy_idx, n_toys, progress_every):
@@ -186,12 +115,12 @@ def should_print_progress(toy_idx, n_toys, progress_every):
 # Output helpers
 
 def save_results(*, output_dir, summary, null_result, alt_result):
-    """Save toy outputs and run summary to a compressed NumPy file.
+    """Save toy outputs and run summary to a NumPy file.
 
     :param output_dir: Directory where results are written.
     :param summary: ``RunSummary`` object.
-    :param null_result: Null ``ToyEnsemble``.
-    :param alt_result: Alternative ``ToyEnsemble``.
+    :param null_result: Null ``NPLMResamplingEnsemble``.
+    :param alt_result: Alternative ``NPLMResamplingEnsemble``.
     :returns: Path to the saved ``.npz`` file.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -201,71 +130,74 @@ def save_results(*, output_dir, summary, null_result, alt_result):
         output_path,
         t_null=null_result.statistics,
         t_alt=alt_result.statistics,
-        null_background_counts=null_result.background_counts,
-        null_signal_counts=null_result.signal_counts,
-        alt_background_counts=alt_result.background_counts,
-        alt_signal_counts=alt_result.signal_counts,
+        null_background_counts=np.array([m["n_background"] for m in null_result.metadata], dtype=np.int64),
+        null_signal_counts=np.array([m["n_component"] for m in null_result.metadata], dtype=np.int64),
+        alt_background_counts=np.array([m["n_background"] for m in alt_result.metadata], dtype=np.int64),
+        alt_signal_counts=np.array([m["n_component"] for m in alt_result.metadata], dtype=np.int64),
         null_model_seeds=null_result.model_seeds,
         alt_model_seeds=alt_result.model_seeds,
         summary_json=json.dumps(summary._asdict(), sort_keys=True),
+        null_reference_counts=null_result.reference_counts,
+        null_data_counts=null_result.data_counts,
+        alt_reference_counts=alt_result.reference_counts,
+        alt_data_counts=alt_result.data_counts,
+        provenance_json=json.dumps({
+            label: {
+                "seed": result.seed, "model_config": result.model_config,
+                "resample_nystrom": result.resample_nystrom, "dtype": result.dtype,
+                "metadata": result.metadata,
+            }
+            for label, result in (("null", null_result), ("alternative", alt_result))
+        }, sort_keys=True),
     )
     return output_path
 
 
-def alternative_quantile_z_scores(null_statistics, alt_statistics):
-    """Compute empirical Z-scores at alternative statistic quantiles.
-
-    :param null_statistics: Null statistics with shape ``(n_null,)``.
-    :param alt_statistics: Alternative statistics with shape ``(n_alt,)``.
-    :returns: Pair ``(quantile_levels, z_scores)`` with shape ``(3,)``.
-    """
-    quantile_levels = np.array([0.16, 0.50, 0.84], dtype=np.float64)
-    alt_t_quantiles = np.quantile(alt_statistics, quantile_levels)
-    p_values = emp_pvalues_mc(null_statistics, alt_t_quantiles)
-    return quantile_levels, z_from_p(p_values)
-
-
-def print_summary(null_result, alt_result):
-    """Print a compact summary of null and alternative toy statistics.
-
-    :param null_result: Null ``ToyEnsemble``.
-    :param alt_result: Alternative ``ToyEnsemble``.
-    :returns: ``None``.
-    """
-    print("\nGenerator-toy NPLM results")
-    print("--------------------------")
-    print(f"null toys: {len(null_result.statistics)}")
+def print_summary(null_result, alt_result, comparison):
+    """Print empirical quantiles and optional chi-square compatibility diagnostics."""
+    print(f"\nnull toys: {len(null_result.statistics)}")
     print(f"alt toys:  {len(alt_result.statistics)}")
+    result = comparison.alternatives["alternative"]
+    print("alt empirical Z at t quantiles [16%, 50%, 84%]: "
+          + np.array2string(result.z_scores, precision=3))
+    print("The 16–84% interval is the spread across toys, not uncertainty on the median.")
+    print(f"empirical p-value resolution: {comparison.p_value_resolution:.4g}")
+    if comparison.chi2_fit is not None:
+        print(f"chi-square check: {comparison.chi2_fit.reason}; "
+              f"bootstrap p={comparison.chi2_fit.p_value}")
+    if result.chi2_z_scores is not None:
+        print("alt chi-square Z at the same t quantiles: "
+              + np.array2string(result.chi2_z_scores, precision=3))
 
-    _, z_scores = alternative_quantile_z_scores(
-        null_result.statistics,
-        alt_result.statistics,
-    )
-    z16, z50, z84 = z_scores
-    print(
-        "alt empirical Z at t quantiles [16%, 50%, 84%]: "
-        f"[{z16:.3f}, {z50:.3f}, {z84:.3f}]"
-    )
-    print(f"median empirical Z: {z50:.3f} (-{z50 - z16:.3f}/+{z84 - z50:.3f})")
 
-
-def maybe_plot(*, output_dir, null_result, alt_result, make_plot):
-    """Optionally plot the generated null and alternative distributions.
-
-    :param output_dir: Directory where the plot is written.
-    :param null_result: Null ``ToyEnsemble``.
-    :param alt_result: Alternative ``ToyEnsemble``.
-    :param make_plot: If true, save and display the plot.
-    :returns: ``None``.
-    """
+def maybe_plot(*, output_dir, null_result, alt_result, comparison, make_plot):
+    """Plot toy distributions and a chi-square curve only if the check passed."""
     if not make_plot:
         return
+    import matplotlib.pyplot as plt
+    from scipy.stats import chi2
 
-    plot_nplm_distributions(
-        t_null=null_result.statistics,
-        t_alt=alt_result.statistics,
-        save_path=output_dir / "gaussian_1d_generator_distributions.png",
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    edges = np.histogram_bin_edges(
+        np.concatenate((null_result.statistics, alt_result.statistics)), bins=30
     )
+    ax.hist(null_result.statistics, bins=edges, density=True, alpha=0.5, label="Null")
+    ax.hist(alt_result.statistics, bins=edges, density=True, alpha=0.5, label="Alternative")
+    fit = comparison.chi2_fit
+    if fit is not None and fit.accepted:
+        grid = np.linspace(max(0.0, edges[0]), edges[-1], 1000)
+        ax.plot(grid, chi2.pdf(grid, df=fit.dof), label=f"chi-square (df={fit.dof:.2f})")
+    result = comparison.alternatives["alternative"]
+    for level, value in zip(result.quantile_levels, result.t_quantiles):
+        ax.axvline(value, linestyle="--", linewidth=1, label=f"Alternative {level:.0%}")
+    ax.set(xlabel="NPLM statistic", ylabel="Density",
+           title=f"Median empirical Z = {result.z_scores[1]:.2f}")
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+    path = output_dir / "gaussian_1d_generator_distributions.png"
+    fig.savefig(path, dpi=150)
+    print(f"saved plot: {path}")
+    plt.show()
 
 
 #########################################################################################################
@@ -393,30 +325,28 @@ def main():
     rng = np.random.default_rng(args.seed)
     base_model_config = make_model_config(args)
 
-    null_result = run_toy_ensemble(
-        label="null",
-        n_toys=args.n_null,
-        n_reference=args.n_reference,
-        data_sampler=make_data_sampler(
-            expected_background=args.expected_background,
-            expected_signal=0.0,
-        ),
-        base_model_config=base_model_config,
-        rng=rng,
-        progress_every=args.progress_every,
+    # Separate master seeds make each ensemble reproducible on its own.
+    null_seed, alt_seed = (
+        int(value) for value in rng.integers(0, MAX_MODEL_SEED, size=2, dtype=np.uint32)
     )
-
-    alt_result = run_toy_ensemble(
-        label="alt",
-        n_toys=args.n_alt,
-        n_reference=args.n_reference,
-        data_sampler=make_data_sampler(
-            expected_background=args.expected_background,
-            expected_signal=args.expected_signal,
+    null_result = nplm_resampling_null(
+        make_sampler(
+            n_reference=args.n_reference, expected_background=args.expected_background,
+            expected_signal=0.0, label="null", n_toys=args.n_null,
+            progress_every=args.progress_every,
         ),
-        base_model_config=base_model_config,
-        rng=rng,
-        progress_every=args.progress_every,
+        base_model_config, n_null=args.n_null, seed=null_seed,
+    )
+    alt_result = nplm_resampling_alternative(
+        make_sampler(
+            n_reference=args.n_reference, expected_background=args.expected_background,
+            expected_signal=args.expected_signal, label="alt", n_toys=args.n_alt,
+            progress_every=args.progress_every,
+        ),
+        base_model_config, n_alternative=args.n_alt, seed=alt_seed,
+    )
+    comparison = compare_nplm_results(
+        null_result, {"alternative": alt_result}, fit_chi2=True, seed=args.seed,
     )
 
     summary = build_summary(args)
@@ -427,13 +357,14 @@ def main():
         alt_result=alt_result,
     )
 
-    print_summary(null_result, alt_result)
+    print_summary(null_result, alt_result, comparison)
     print(f"saved arrays: {output_path}")
 
     maybe_plot(
         output_dir=args.output_dir,
         null_result=null_result,
         alt_result=alt_result,
+        comparison=comparison,
         make_plot=not args.no_plot,
     )
 

@@ -6,6 +6,7 @@
 from .synthetic import sample_ref_exp, sample_signal_gauss, make_data_sample_poisson
 from .datasets import build_pooled_sample
 from .preprocessing import standardize_dataset
+from .sampling import make_null_sampler, make_mixture_sampler, make_alternative_sampler
 
 __all__ = [
     "sample_ref_exp",
@@ -13,4 +14,7 @@ __all__ = [
     "make_data_sample_poisson",
     "build_pooled_sample",
     "standardize_dataset",
+    "make_null_sampler",
+    "make_mixture_sampler",
+    "make_alternative_sampler",
 ]

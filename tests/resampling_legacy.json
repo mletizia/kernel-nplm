@@ -1,0 +1,1042 @@
+[
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": false
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        606588.748,
+        620424.748,
+        613085.748
+      ],
+      "alternative_statistics": [
+        2308536.748,
+        2201699.748,
+        2162848.748
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        2175281.068,
+        2201699.748,
+        2274348.9080000003
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "null_sampling": "disjoint",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": true
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        600118.748,
+        681875.936,
+        587447.362
+      ],
+      "alternative_statistics": [
+        2339761.514,
+        2236027.325,
+        2210536.445
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        2218693.5266,
+        2236027.325,
+        2306566.57352
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "null_sampling": "disjoint",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        2930678936,
+        2546691362
+      ],
+      "alternative_seeds": [
+        231159514,
+        3904498325,
+        946438445
+      ],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": false
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1840838.748,
+      "null_statistics": [
+        606588.748,
+        620424.748,
+        613085.748
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "disjoint",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": true
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1846282.748,
+      "null_statistics": [
+        597702.936,
+        617270.362,
+        604100.514
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "disjoint",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        2930678936,
+        2546691362,
+        231159514
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": false
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        366736.748,
+        518949.748,
+        641593.748
+      ],
+      "alternative_statistics": [
+        2172723.748,
+        1314766.748,
+        1603215.748
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        1407070.4279999998,
+        1603215.748,
+        1990481.188
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        10,
+        16,
+        22
+      ],
+      "alternative_data_counts": [
+        19,
+        12,
+        15
+      ],
+      "null_sampling": "disjoint",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": true
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        483024.748,
+        496234.936,
+        596859.362
+      ],
+      "alternative_statistics": [
+        3336400.514,
+        1891493.325,
+        2209594.445
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        1993285.6834,
+        2209594.445,
+        2975822.57192
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        15,
+        14,
+        19
+      ],
+      "alternative_data_counts": [
+        27,
+        17,
+        20
+      ],
+      "null_sampling": "disjoint",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        2930678936,
+        2546691362
+      ],
+      "alternative_seeds": [
+        231159514,
+        3904498325,
+        946438445
+      ],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": false
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1876626.748,
+      "null_statistics": [
+        366736.748,
+        518949.748,
+        641593.748
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        10,
+        16,
+        22
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "disjoint",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "disjoint",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": true
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1854569.748,
+      "null_statistics": [
+        509081.936,
+        496234.362,
+        596859.514
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        16,
+        14,
+        19
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "disjoint",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        2930678936,
+        2546691362,
+        231159514
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": false
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        567404.748,
+        650098.748,
+        666439.748
+      ],
+      "alternative_statistics": [
+        2277632.748,
+        2230022.748,
+        2259472.748
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        2239446.748,
+        2259472.748,
+        2271821.548
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "null_sampling": "independent",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": true
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        526769.748,
+        576460.936,
+        661217.362
+      ],
+      "alternative_statistics": [
+        2245110.514,
+        2219501.325,
+        2326349.445
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        2227696.26548,
+        2245110.514,
+        2300352.98708
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "null_sampling": "independent",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        2930678936,
+        2546691362
+      ],
+      "alternative_seeds": [
+        231159514,
+        3904498325,
+        946438445
+      ],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": false
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1857647.748,
+      "null_statistics": [
+        567404.748,
+        650098.748,
+        666439.748
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "independent",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": false,
+      "resample_nystrom": true
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1896713.748,
+      "null_statistics": [
+        530809.936,
+        607440.362,
+        667609.514
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        20,
+        20,
+        20
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "independent",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        2930678936,
+        2546691362,
+        231159514
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": false,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": false
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        388888.748,
+        657483.748,
+        505333.748
+      ],
+      "alternative_statistics": [
+        1333701.748,
+        2289972.748,
+        2139162.748
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        1591449.268,
+        2139162.748,
+        2241713.548
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        10,
+        21,
+        14
+      ],
+      "alternative_data_counts": [
+        12,
+        21,
+        19
+      ],
+      "null_sampling": "independent",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": true
+    },
+    "pool_size": 1000,
+    "expected": {
+      "p_value": null,
+      "z_score": null,
+      "t_obs": null,
+      "null_statistics": [
+        405799.748,
+        756769.936,
+        725355.362
+      ],
+      "alternative_statistics": [
+        3111924.514,
+        3313774.325,
+        1925290.445
+      ],
+      "alternative_quantile_levels": [
+        0.16,
+        0.5,
+        0.84
+      ],
+      "alternative_t_quantiles": [
+        2305013.34708,
+        3111924.514,
+        3249182.38548
+      ],
+      "alternative_p_values": [
+        0.25,
+        0.25,
+        0.25
+      ],
+      "alternative_z_scores": [
+        0.6744897501960817,
+        0.6744897501960817,
+        0.6744897501960817
+      ],
+      "n_extreme": null,
+      "n_null": 3,
+      "n_alternative": 3,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": null,
+      "null_data_counts": [
+        15,
+        28,
+        25
+      ],
+      "alternative_data_counts": [
+        27,
+        27,
+        17
+      ],
+      "null_sampling": "independent",
+      "single_data_mode": false,
+      "seed": 123,
+      "observed_seed": null,
+      "null_seeds": [
+        66316748,
+        2930678936,
+        2546691362
+      ],
+      "alternative_seeds": [
+        231159514,
+        3904498325,
+        946438445
+      ],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 50.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": false
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1865230.748,
+      "null_statistics": [
+        388888.748,
+        657483.748,
+        505333.748
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        10,
+        21,
+        14
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "independent",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        66316748,
+        66316748,
+        66316748
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": false,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  },
+  {
+    "options": {
+      "null_sampling": "independent",
+      "poisson_fluctuate_n_data": true,
+      "resample_nystrom": true
+    },
+    "pool_size": 20,
+    "expected": {
+      "p_value": 0.25,
+      "z_score": 0.6744897501960817,
+      "t_obs": 1853182.748,
+      "null_statistics": [
+        443987.936,
+        702907.362,
+        720058.514
+      ],
+      "alternative_statistics": null,
+      "alternative_quantile_levels": null,
+      "alternative_t_quantiles": null,
+      "alternative_p_values": null,
+      "alternative_z_scores": null,
+      "n_extreme": 0,
+      "n_null": 3,
+      "n_alternative": 0,
+      "n_ref": 30,
+      "n_data": 20,
+      "observed_data_count": 20,
+      "null_data_counts": [
+        16,
+        26,
+        24
+      ],
+      "alternative_data_counts": [],
+      "null_sampling": "independent",
+      "single_data_mode": true,
+      "seed": 123,
+      "observed_seed": 66316748,
+      "null_seeds": [
+        2930678936,
+        2546691362,
+        231159514
+      ],
+      "alternative_seeds": [],
+      "resample_nystrom": true,
+      "poisson_fluctuate_n_data": true,
+      "p_value_resolution": 0.25,
+      "reference_null_factor": 20.0,
+      "reference_alt_factor": 33.333333333333336,
+      "data_alt_factor": 1.0
+    }
+  }
+]

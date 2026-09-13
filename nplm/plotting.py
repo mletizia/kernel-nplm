@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import chi2, norm
 
+from stat_tests._utils import _empirical_pvalues
+
 
 #########################################################################################################
 # Empirical statistic helpers
@@ -17,13 +19,7 @@ def emp_pvalue_mc(t0, t1):
     :param t1: Observed or alternative statistic.
     :returns: Finite-sample corrected right-tail p-value.
     """
-    null_statistics = np.asarray(t0, dtype=float)
-    if null_statistics.size == 0:
-        raise ValueError("t0 must be non-empty")
-
-    test_statistic = float(t1)
-    n_toys = len(null_statistics)
-    return float((1.0 + np.sum(null_statistics >= test_statistic)) / (n_toys + 1.0))
+    return _empirical_pvalues(t0, float(t1))
 
 
 def emp_pvalues_mc(t0, t_values):
@@ -33,14 +29,7 @@ def emp_pvalues_mc(t0, t_values):
     :param t_values: Test statistics with shape ``(n_values,)``.
     :returns: P-values with shape ``(n_values,)``.
     """
-    null_statistics = np.asarray(t0, dtype=float)
-    statistic_values = np.asarray(t_values, dtype=float)
-    if null_statistics.size == 0:
-        raise ValueError("t0 must be non-empty")
-
-    n_toys = len(null_statistics)
-    counts = np.sum(null_statistics[:, None] >= statistic_values[None, :], axis=0)
-    return (1.0 + counts) / (n_toys + 1.0)
+    return _empirical_pvalues(t0, t_values)
 
 
 def z_from_p(p):

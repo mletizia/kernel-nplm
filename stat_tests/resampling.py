@@ -2,27 +2,37 @@
 
 import warnings
 from collections import namedtuple
+from collections.abc import Mapping
+from contextlib import contextmanager
+from copy import deepcopy
 
 import numpy as np
-import torch
 from scipy.stats import norm
 
 from .permutation import (
     _MAX_SEED,
     _as_2d_sample,
     _build_pooled_sample,
-    _compute_nplm_statistic,
     _validate_compatible_samples,
     _validate_config_sizes,
     _validate_model_config,
 )
 
+from ._utils import _ALTERNATIVE_QUANTILE_LEVELS, _empirical_pvalues
+
 
 #########################################################################################################
 # Constants and result containers
 
-_ALTERNATIVE_QUANTILE_LEVELS = np.array([0.16, 0.50, 0.84], dtype=np.float64)
 _NULL_SAMPLING_MODES = {"disjoint", "independent"}
+
+
+NPLMResamplingEnsemble = namedtuple(
+    "NPLMResamplingEnsemble",
+    "statistics reference_counts data_counts metadata seed model_seeds "
+    "model_config resample_nystrom dtype",
+)
+NPLMResamplingEnsemble.__doc__ = "Raw toy statistics and provenance, before calibration."
 
 
 NPLMResamplingResult = namedtuple(
@@ -64,6 +74,40 @@ NPLMResamplingResult.__doc__ = "Result of a reference-calibrated NPLM resampling
 
 #########################################################################################################
 # Public test API
+
+def nplm_resampling_null(
+    null_sampler, model_config, *, n_null=100, seed=0,
+    resample_nystrom=True, dtype=np.float64,
+):
+    """Reconstruct a null using ``sampler(rng) -> (ref, data, metadata)``.
+
+    The sampler controls counts and preprocessing. ``NR`` remains the expected
+    null yield; ``N_R`` and ``N_D`` are set from the realized arrays at each fit.
+    No p-values are calculated here. Sampling or fitting failures identify the
+    toy (one-based) and model seed, and abort the ensemble without retries.
+    """
+    return _run_resampling_toys(
+        null_sampler, model_config, n_toys=n_null, seed=seed,
+        resample_nystrom=resample_nystrom, dtype=dtype, label="null",
+    )
+
+
+def nplm_resampling_alternative(
+    alternative_sampler, model_config, *, n_alternative=100, seed=0,
+    resample_nystrom=True, dtype=np.float64,
+):
+    """Reconstruct an alternative independently of the null; see the null API.
+
+    Use ``compare_nplm_results`` afterwards with a compatible null ensemble.
+    A fresh model seed is drawn per toy by default. With
+    ``resample_nystrom=False`` one model seed is repeated across this ensemble;
+    this does not fix the actual center coordinates when sampled rows change.
+    """
+    return _run_resampling_toys(
+        alternative_sampler, model_config, n_toys=n_alternative, seed=seed,
+        resample_nystrom=resample_nystrom, dtype=dtype, label="alternative",
+    )
+
 
 def nplm_resampling_test(
     x_ref,
@@ -194,97 +238,72 @@ def nplm_resampling_test(
     seed_pos += n_null
     alternative_seeds = fit_seeds[seed_pos : seed_pos + n_alt_effective]
 
-    np_state = np.random.get_state()
-    torch_state = torch.random.get_rng_state()
-    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    def sample_null(rng):
+        count = _draw_resampled_data_count(
+            n_data=n_data, rng=rng,
+            poisson_fluctuate_n_data=poisson_fluctuate_n_data,
+        )
+        _validate_resampled_data_count(
+            n_ref_pool=n_ref_pool, n_data_pool=n_data_pool, n_ref=n_ref,
+            n_data=count, null_sampling=null_sampling, sampling_context="null",
+        )
+        reference, data = _sample_null_pair(
+            x_ref_2d=x_ref_2d, n_ref=n_ref, n_data=count,
+            rng=rng, null_sampling=null_sampling,
+        )
+        return reference, data, {}
 
-    try:
-        null_statistics = np.empty(n_null, dtype=np.float64)
-        null_data_counts = np.empty(n_null, dtype=np.int64)
-        for idx, model_seed in enumerate(null_seeds):
-            n_data_null = _draw_resampled_data_count(
-                n_data=n_data,
-                rng=rng,
-                poisson_fluctuate_n_data=poisson_fluctuate_n_data,
-            )
-            _validate_resampled_data_count(
-                n_ref_pool=n_ref_pool,
-                n_data_pool=n_data_pool,
-                n_ref=n_ref,
-                n_data=n_data_null,
-                null_sampling=null_sampling,
-                sampling_context="null",
-            )
-            x_null_ref, x_null_data = _sample_null_pair(
-                x_ref_2d=x_ref_2d,
-                n_ref=n_ref,
-                n_data=n_data_null,
-                rng=rng,
-                null_sampling=null_sampling,
-            )
-            null_data_counts[idx] = n_data_null
-            null_statistics[idx] = _compute_pair_statistic(
-                x_ref=x_null_ref,
-                x_data=x_null_data,
-                base_config=base_config,
-                seed=int(model_seed),
-                dtype=dtype,
-            )
+    def sample_alternative(rng):
+        count = _draw_resampled_data_count(
+            n_data=n_data, rng=rng,
+            poisson_fluctuate_n_data=poisson_fluctuate_n_data,
+        )
+        _validate_resampled_data_count(
+            n_ref_pool=n_ref_pool, n_data_pool=n_data_pool, n_ref=n_ref,
+            n_data=count, null_sampling=null_sampling, sampling_context="alternative",
+        )
+        ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
+        data_idx = rng.choice(n_data_pool, size=count, replace=False)
+        return x_ref_2d[ref_idx], x_data_2d[data_idx], {}
 
-        t_obs_value = None
-        observed_data_count = None
-        if single_data_mode:
-            ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
-            observed_data_count = int(x_data_2d.shape[0])
-            t_obs_value = _compute_pair_statistic(
-                x_ref=x_ref_2d[ref_idx],
-                x_data=x_data_2d,
-                base_config=base_config,
-                seed=int(observed_seed),
-                dtype=dtype,
-            )
+    def sample_observed(rng):
+        ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
+        return x_ref_2d[ref_idx], x_data_2d, {}
 
-        alternative_statistics = None
-        alternative_data_counts = np.empty(0, dtype=np.int64)
-        if n_alt_effective > 0:
-            alternative_statistics = np.empty(n_alt_effective, dtype=np.float64)
-            alternative_data_counts = np.empty(n_alt_effective, dtype=np.int64)
-            for idx, model_seed in enumerate(alternative_seeds):
-                n_data_alt = _draw_resampled_data_count(
-                    n_data=n_data,
-                    rng=rng,
-                    poisson_fluctuate_n_data=poisson_fluctuate_n_data,
-                )
-                _validate_resampled_data_count(
-                    n_ref_pool=n_ref_pool,
-                    n_data_pool=n_data_pool,
-                    n_ref=n_ref,
-                    n_data=n_data_alt,
-                    null_sampling=null_sampling,
-                    sampling_context="alternative",
-                )
-                ref_idx = rng.choice(n_ref_pool, size=n_ref, replace=False)
-                data_idx = rng.choice(n_data_pool, size=n_data_alt, replace=False)
-                alternative_data_counts[idx] = n_data_alt
-                alternative_statistics[idx] = _compute_pair_statistic(
-                    x_ref=x_ref_2d[ref_idx],
-                    x_data=x_data_2d[data_idx],
-                    base_config=base_config,
-                    seed=int(model_seed),
-                    dtype=dtype,
-                )
-    finally:
-        np.random.set_state(np_state)
-        torch.random.set_rng_state(torch_state)
-        if cuda_states is not None:
-            torch.cuda.set_rng_state_all(cuda_states)
+    # Reuse the original RNG and preallocated seeds across the three stages.
+    toy_options = dict(seed=seed, resample_nystrom=resample_nystrom, dtype=dtype, rng=rng)
+    null = _run_resampling_toys(
+        sample_null, base_config, n_toys=n_null, model_seeds=null_seeds,
+        label="null", **toy_options,
+    )
+    null_statistics = null.statistics
+    null_data_counts = null.data_counts
+    t_obs_value = None
+    observed_data_count = None
+    if single_data_mode:
+        observed = _run_resampling_toys(
+            sample_observed, base_config, n_toys=1, model_seeds=[observed_seed],
+            label="observed", **toy_options,
+        )
+        t_obs_value = float(observed.statistics[0])
+        observed_data_count = int(observed.data_counts[0])
+
+    alternative_statistics = None
+    alternative_data_counts = np.empty(0, dtype=np.int64)
+    if n_alt_effective > 0:
+        alternative = _run_resampling_toys(
+            sample_alternative, base_config, n_toys=n_alt_effective,
+            model_seeds=alternative_seeds, label="alternative", **toy_options,
+        )
+        alternative_statistics = alternative.statistics
+        alternative_data_counts = alternative.data_counts
 
     p_value = None
     z_score = None
     n_extreme = None
     if t_obs_value is not None:
         n_extreme = int(np.sum(null_statistics >= t_obs_value))
-        p_value = float((1.0 + n_extreme) / (n_null + 1.0))
+        p_value = _empirical_pvalues(null_statistics, t_obs_value)
         z_score = float(norm.isf(p_value))
 
     alt_t_quantiles = None
@@ -332,6 +351,89 @@ def nplm_resampling_test(
         reference_alt_factor=float(reference_alt_factor),
         data_alt_factor=float(data_alt_factor),
     )
+
+
+#########################################################################################################
+# Shared toy loop
+
+def _run_resampling_toys(
+    sampler, model_config, *, n_toys, seed, resample_nystrom, dtype, label,
+    rng=None, model_seeds=None,
+):
+    """Sample, fit and collect toys; NR stays fixed and N_R/N_D follow each draw.
+
+    The combined wrapper supplies its existing RNG and preallocated model seeds
+    to preserve its sampling sequence. Separate reconstruction calls create them
+    here. Failed toys abort with their number and model seed; no retries occur.
+    """
+    n_toys = _validate_positive_int(n_toys, name="n_toys")
+    if not callable(sampler):
+        raise TypeError("sampler must be callable: sampler(rng) -> (ref, data, metadata)")
+    config = deepcopy(_validate_model_config(model_config))
+    dtype = np.dtype(dtype)
+    if rng is None:
+        if dtype.kind != "f":
+            raise ValueError("dtype must be a floating dtype")
+        rng = np.random.default_rng(seed)
+    if model_seeds is None:
+        model_seeds = _draw_fit_seeds(
+            rng=rng, n_fits=n_toys, resample_nystrom=resample_nystrom,
+        )
+    model_seeds = np.asarray(model_seeds, dtype=np.int64)
+
+    statistics = np.empty(n_toys, dtype=np.float64)
+    reference_counts = np.empty(n_toys, dtype=np.int64)
+    data_counts = np.empty(n_toys, dtype=np.int64)
+    metadata = []
+    with _preserve_global_rng():
+        from nplm import LogFalkonNPLM
+
+        for idx, model_seed in enumerate(model_seeds):
+            try:
+                x_ref, x_data, toy_metadata = sampler(rng)
+                if np.asarray(x_data).ndim > 0 and len(x_data) == 0:
+                    raise ValueError("empty pseudo-dataset (realized data count is zero)")
+                x_ref = _as_2d_sample(x_ref, name="x_ref", dtype=dtype)
+                x_data = _as_2d_sample(x_data, name="x_data", dtype=dtype)
+                _validate_compatible_samples(x_ref, x_data)
+                if not isinstance(toy_metadata, Mapping):
+                    raise TypeError("sampler metadata must be a mapping")
+                metadata.append(deepcopy(dict(toy_metadata)))
+
+                x, y = _build_pooled_sample(x_ref, x_data, dtype=dtype)
+                fit_config = deepcopy(config)
+                fit_config.update(N_R=len(x_ref), N_D=len(x_data), seed=int(model_seed))
+                model = LogFalkonNPLM(fit_config)
+                statistics[idx] = float(model.compute_statistic(x, y, return_details=False))
+                if not np.isfinite(statistics[idx]):
+                    raise ValueError(f"nonfinite NPLM statistic: {statistics[idx]}")
+                reference_counts[idx] = len(x_ref)
+                data_counts[idx] = len(x_data)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{label} toy {idx + 1} failed (model seed={model_seed}): {exc}"
+                ) from exc
+    return NPLMResamplingEnsemble(
+        statistics, reference_counts, data_counts, metadata,
+        None if seed is None else int(seed), model_seeds.copy(), config,
+        bool(resample_nystrom), dtype.name,
+    )
+
+
+@contextmanager
+def _preserve_global_rng():
+    import torch
+
+    np_state = np.random.get_state()
+    torch_state = torch.random.get_rng_state()
+    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    try:
+        yield
+    finally:
+        np.random.set_state(np_state)
+        torch.random.set_rng_state(torch_state)
+        if cuda_states is not None:
+            torch.cuda.set_rng_state_all(cuda_states)
 
 
 #########################################################################################################
@@ -449,8 +551,8 @@ def _validate_resampled_data_count(
     :param sampling_context: Human-readable context for errors.
     :returns: ``None``.
     """
-    if n_data < 1:
-        raise RuntimeError("Internal error: realized n_data must be positive")
+    if n_data == 0:
+        raise ValueError("empty pseudo-dataset (realized data count is zero)")
 
     if sampling_context == "null":
         if null_sampling == "disjoint" and n_ref + n_data > n_ref_pool:
@@ -528,10 +630,10 @@ def _draw_resampled_data_count(
     :param n_data: Nominal expected pseudo-data count.
     :param rng: NumPy random generator.
     :param poisson_fluctuate_n_data: Whether to draw from ``Poisson(n_data)``.
-    :returns: Positive integer data count.
+    :returns: Nonnegative integer data count (zero is not clamped).
     """
     if poisson_fluctuate_n_data:
-        return max(1, int(rng.poisson(n_data)))
+        return int(rng.poisson(n_data))
     return int(n_data)
 
 
@@ -559,48 +661,3 @@ def _sample_null_pair(
     idx_ref = rng.choice(x_ref_2d.shape[0], size=n_ref, replace=True)
     idx_data = rng.choice(x_ref_2d.shape[0], size=n_data, replace=True)
     return x_ref_2d[idx_ref], x_ref_2d[idx_data]
-
-
-def _compute_pair_statistic(
-    *,
-    x_ref,
-    x_data,
-    base_config,
-    seed,
-    dtype,
-):
-    """Compute the NPLM statistic for one sampled reference/data pair.
-
-    :param x_ref: Reference sample with shape ``(n_ref, n_features)``.
-    :param x_data: Data sample with shape ``(n_data, n_features)``.
-    :param base_config: Base NPLM configuration dictionary.
-    :param seed: Model seed used for this fit.
-    :param dtype: Floating dtype used for pooling.
-    :returns: Scalar NPLM statistic.
-    """
-    x_pooled, y = _build_pooled_sample(
-        np.ascontiguousarray(x_ref, dtype=dtype),
-        np.ascontiguousarray(x_data, dtype=dtype),
-        dtype=dtype,
-    )
-    fit_config = dict(base_config)
-    fit_config["N_R"] = int(x_ref.shape[0])
-    fit_config["N_D"] = int(x_data.shape[0])
-    return _compute_nplm_statistic(x=x_pooled, y=y, base_config=fit_config, seed=seed)
-
-
-def _empirical_pvalues(
-    null_statistics,
-    statistic_values,
-):
-    """Compute empirical right-tail p-values for statistic values.
-
-    :param null_statistics: Null statistics with shape ``(n_null,)``.
-    :param statistic_values: Test statistics with shape ``(n_values,)``.
-    :returns: Empirical p-values with shape ``(n_values,)``.
-    """
-    null_statistics = np.asarray(null_statistics, dtype=np.float64)
-    statistic_values = np.asarray(statistic_values, dtype=np.float64)
-    n_null = null_statistics.shape[0]
-    counts = np.sum(null_statistics[:, None] >= statistic_values[None, :], axis=0)
-    return (1.0 + counts) / (n_null + 1.0)

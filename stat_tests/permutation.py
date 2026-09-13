@@ -3,10 +3,9 @@
 from collections import namedtuple
 
 import numpy as np
-import torch
 from scipy.stats import norm
 
-from nplm import LogFalkonNPLM
+from ._utils import _empirical_pvalues
 
 
 #########################################################################################################
@@ -50,6 +49,9 @@ def nplm_permutation_test(
 ):
     """Run a right-tail permutation test using the NPLM statistic.
 
+    Failed or nonfinite fits abort with the fit label and model seed; global
+    RNG states are restored. Finite negative statistics remain allowed.
+
     :param x_ref: Reference sample with shape ``(n_ref, n_features)``.
     :param x_data: Data sample with shape ``(n_data, n_features)``.
     :param model_config: Configuration passed to ``LogFalkonNPLM``; ``NR`` and ``sigma`` are required.
@@ -61,6 +63,8 @@ def nplm_permutation_test(
     :param dtype: Floating dtype used when pooling the samples.
     :returns: ``NPLMPermutationResult`` with p-value, Z-score, seeds, and optional arrays.
     """
+    import torch
+
     n_permutations = _validate_n_permutations(n_permutations)
     base_config = _validate_model_config(model_config)
 
@@ -94,6 +98,7 @@ def nplm_permutation_test(
             y=y_fixed,
             base_config=base_config,
             seed=observed_seed,
+            label="observed fit",
         )
 
         null_statistics = np.empty(n_permutations, dtype=np.float64)
@@ -105,6 +110,7 @@ def nplm_permutation_test(
                 y=y_fixed,
                 base_config=base_config,
                 seed=int(model_seed),
+                label=f"permutation {idx + 1}",
             )
     finally:
         np.random.set_state(np_state)
@@ -113,7 +119,7 @@ def nplm_permutation_test(
             torch.cuda.set_rng_state_all(cuda_states)
 
     n_extreme = int(np.sum(null_statistics >= t_obs_value))
-    p_value = float((1.0 + n_extreme) / (n_permutations + 1.0))
+    p_value = _empirical_pvalues(null_statistics, t_obs_value)
     z_score = float(norm.isf(p_value))
 
     return NPLMPermutationResult(
@@ -282,6 +288,7 @@ def _compute_nplm_statistic(
     y,
     base_config,
     seed,
+    label,
 ):
     """Compute one NPLM statistic with a fixed model seed.
 
@@ -289,10 +296,18 @@ def _compute_nplm_statistic(
     :param y: Binary labels with shape ``(n_samples,)``.
     :param base_config: Base NPLM configuration dictionary.
     :param seed: Model seed used for this fit.
+    :param label: Observed fit or permutation number, used to identify failures.
     :returns: Scalar NPLM statistic.
     """
-    config = dict(base_config)
-    config["seed"] = int(seed)
+    from nplm import LogFalkonNPLM
 
-    model = LogFalkonNPLM(config)
-    return float(model.compute_statistic(x, y, return_details=False))
+    try:
+        config = dict(base_config)
+        config["seed"] = int(seed)
+        model = LogFalkonNPLM(config)
+        statistic = float(model.compute_statistic(x, y, return_details=False))
+        if not np.isfinite(statistic):
+            raise ValueError(f"nonfinite NPLM statistic: {statistic}")
+        return statistic
+    except Exception as exc:
+        raise RuntimeError(f"{label} failed (model seed={seed}): {exc}") from exc
