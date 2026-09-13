@@ -445,6 +445,51 @@ when its bootstrap compatibility check passes. Empirical results are always
 saved; the 16–84% interval describes the spread across toys. `--no-chi2` and
 `--no-plot` disable the optional fit/check and plot respectively.
 
+### Direct DIMUON baseline
+
+[`examples/dimuon_simple.py`](examples/dimuon_simple.py) is a standalone version
+of the supplied baseline: one loop samples events, normalizes them, constructs
+`LogisticFalkon`, calls `fit`/`predict`, and computes the full statistic with
+NumPy. It imports no repository model, sampling or statistical-test modules.
+The defaults are M=20,000, sigma=3, penalty=1e-6, iter=[1,000,000],
+cg_tol=sqrt(1e-7), 100,000 reference events and expected background 20,000.
+It uses the legacy `higgs` normalization and no additional cuts. Counts are
+Poisson; reference and background are sampled jointly and split without overlap.
+
+```bash
+python examples/dimuon_simple.py --gpu --case null --n-toys 50 \
+    --output-dir results_dimuon_simple_null
+```
+
+For the discrepancy investigation, replay only the first three of the saved
+null toys, with their saved sampling settings, model configuration and seeds:
+
+```bash
+python examples/dimuon_simple.py --replay-null results_dimuon_null/null.npz \
+    --n-toys 3 --output-dir results_dimuon_simple_replay
+```
+
+Replay consumes the original complete model-seed sequence before drawing events,
+so requesting fewer toys still reproduces the original inputs. It checks their
+counts and normalization parameters. Explicit model/device options can override
+saved settings for controlled comparisons; sampling sizes and seed remain fixed.
+Use the same SM file, with its original row order. Add `--validate-only` to check
+sampling/preprocessing without Torch or Falkon and without writing outputs.
+
+Use `--case zprime300` or `--case zprime600` for independently fluctuating SM
+and signal mixtures, with expected signal yields 40 and 15 respectively;
+`--signal-yield` overrides these. `--normalization scaler` or `none` permits
+explicit preprocessing comparisons. This script does not yet cover EFT.
+Fresh runs default to `--seed 0`; use distinct seeds for independent ensembles.
+
+`toys.csv` records each completed toy immediately, including both contributions
+to t, training time, and saved t/difference during replay. `config.json` records
+the run settings; `results.npz` contains statistics, counts, model seeds and
+normalization parameters. `distribution.pdf` shows the raw histogram (disable
+with `--no-plot`). Calibration is intentionally outside this diagnostic script.
+Use a separate output directory per run; a new run replaces that directory's
+result files. Failed fits abort and preserve the CSV rows already written.
+
 ## Reproducibility
 
 The wrappers in `stat_tests/` use local NumPy generators for sampling and store
