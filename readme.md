@@ -398,6 +398,9 @@ with Poisson distributions. `NR` stays at the expected SM yield. The default
 change it. Such small toy counts are execution checks, not a significance study
 or a validated reproduction of the paper's working point.
 
+The solver defaults are `iter=[1_000_000]` and `cg_tol=np.sqrt(1e-7)`;
+override them with `--iterations` and `--cg-tol` if needed.
+
 Inputs are ordered as `pt1, pt2, eta1, eta2, delta_phi`; `mll` is excluded. Each
 toy pools its reference and pseudo-data before applying the
 [legacy normalization](https://github.com/FalkonHEP/falkonhep/blob/main/falkonhep/utils/data_utils.py):

@@ -228,7 +228,7 @@ def parse_args(argv=None):
     parser.add_argument("--sigma", type=float, default=3.0)
     parser.add_argument("--nystrom-centers", type=int, default=1000, help="Reduced pilot default; configurable independently of toy counts.")
     parser.add_argument("--penalty", type=float, default=1e-6)
-    parser.add_argument("--iterations", type=int, default=1000)
+    parser.add_argument("--iterations", type=int, default=1_000_000)
     parser.add_argument("--cg-tol", type=float, default=np.sqrt(1e-7))
     parser.add_argument("--keops", choices=("yes", "no"), default="no")
     parser.add_argument("--model-verbose", type=int, default=0)
