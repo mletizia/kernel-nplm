@@ -237,8 +237,9 @@ abort the ensemble; they are never silently dropped or retried.
 For fixed counts, synthetic generators, or file-backed sampling, supply a custom
 callback with the same contract. Preprocess the pools first or apply a previously
 chosen transformation inside the callback. The fitting loop neither chooses nor
-fits preprocessing. HDF5 loading, DIMUON/EFT normalization, benchmark tuning and
-the proposal figure are outside this implementation.
+fits preprocessing. Dataset-specific loading and normalization belong in the
+calling experiment; see the DIMUON pilot example below. EFT rate normalization
+and benchmark tuning remain separate physics inputs.
 
 ### Calibration and reuse
 
@@ -368,6 +369,78 @@ Run the event-weighted loss checks:
 ```bash
 python3 examples/event_weighted_loss.py
 ```
+
+### DIMUON pilot experiments
+
+[`examples/dimuon_resampling.py`](examples/dimuon_resampling.py) keeps DIMUON
+loading, preprocessing and plotting in one file and uses the existing resampling
+API. It reads the combined `DiLepton_*.h5` files in `local-data/DIMUON` (override
+with `--data-dir`). HDF5 loading requires `h5py`; fitting requires Falkon and Torch,
+and plotting requires Matplotlib. First check the actual inputs without fitting:
+
+```bash
+python examples/dimuon_resampling.py --validate-only
+```
+
+Run a small GPU pilot with the SM null, Z' 300 GeV with expected signal yield 40,
+and Z' 600 GeV with expected signal yield 15:
+
+```bash
+python examples/dimuon_resampling.py --gpu --n-null 5 --n-alt 5 \
+    --output-dir results_dimuon_pilot
+```
+
+The reference contains 100,000 events and the expected SM yield is 20,000 by
+default. Reference/background events are jointly sampled without replacement
+and then split; background and injected signal counts fluctuate independently
+with Poisson distributions. `NR` stays at the expected SM yield. The default
+1,000 Nyström centers are a reduced pilot setting: use `--nystrom-centers` to
+change it. Such small toy counts are execution checks, not a significance study
+or a validated reproduction of the paper's working point.
+
+Inputs are ordered as `pt1, pt2, eta1, eta2, delta_phi`; `mll` is excluded. Each
+toy pools its reference and pseudo-data before applying the
+[legacy normalization](https://github.com/FalkonHEP/falkonhep/blob/main/falkonhep/utils/data_utils.py):
+columns containing negatives are standardized, other columns exceeding one are
+divided by their mean, and columns already in [0, 1] are unchanged. This rule is
+recomputed per toy, including injected events. The generic preprocessing helper
+is unchanged. **No additional mass cut is applied by default**; select one with
+`--mll-min` if required. All expected yields must correspond to the chosen
+selection. The combined SM file contains events below 100 GeV, so matching the
+paper's event selection and rates still needs an explicit physics choice.
+
+Generate the null separately with `--cases null`. Reuse a saved null while
+changing signal yields or running additional alternatives:
+
+```bash
+python examples/dimuon_resampling.py --gpu --cases zprime600 \
+    --zprime600-yield 15 --n-alt 100 \
+    --null-results results_dimuon_pilot/null.npz \
+    --output-dir results_dimuon_600
+```
+
+Reuse requires the same model settings, reference size, selection, preprocessing
+and SM file identity (absolute path, size and modification time). `--n-null` is
+ignored when loading a null. Each case has a stable, separate seed derived from
+`--seed`, so changing the case list does not change its draws. Repeating the
+same case/seed/toy count reproduces a run; use a new seed for additional runs.
+
+EFT files are sampled as full alternatives, not as added signal pools. Select
+`eft06`, `eft06_2` or `eft06_5` with `--cases` and supply a positive numerical
+`--eft-yield CASE=TOTAL` for each. `TOTAL` is the expected full pseudo-data yield
+after selection. The script does not infer a Wilson coefficient, EFT rate or
+signal yield from a filename; those inputs must be established separately.
+
+Each completed ensemble is saved immediately as `null.npz` or `CASE.npz`, with
+statistics, realized counts, model seeds and JSON provenance (configuration,
+pool information, sampler counts and per-toy normalization). A reused null is
+also copied into the output directory. `comparison.npz` stores quantile
+calibration and chi-square diagnostics; `dimuon_distributions.png` and `.pdf`
+overlay the distributions. Use separate output directories to retain runs.
+The comparison fits the null once and only reports chi-square significances
+when its bootstrap compatibility check passes. Empirical results are always
+saved; the 16–84% interval describes the spread across toys. `--no-chi2` and
+`--no-plot` disable the optional fit/check and plot respectively.
 
 ## Reproducibility
 

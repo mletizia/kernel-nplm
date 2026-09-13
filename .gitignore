@@ -214,7 +214,8 @@ coding_guidelines.md
 !/local-data/.gitignore
 !/local-data/README.md
 
-# Generated hyperparameter-tuning outputs
+# Generated experiment outputs
 results_tuning*/
+results_dimuon*/
 
 .DS_Store
