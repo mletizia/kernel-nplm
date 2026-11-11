@@ -3,13 +3,15 @@
 Kernel NPLM is a compact Python implementation of the New Physics Learning Machine
 (NPLM) statistic using kernel logistic classification through Falkon.
 
-The repository now separates the core model from statistical-test wrappers:
+The repository separates the core model from statistical-test wrappers:
 
 - `nplm/` contains the core LogisticFalkon NPLM implementation and plotting helpers.
 - `stat_tests/` contains NPLM-based permutation and reference-resampling tests.
 - `data/` contains small data-generation, preprocessing, and pooling utilities.
+- `tuning/` contains the resampling-based hyperparameter scan and its plots.
+- `examples/` contains runnable examples and a notebook.
+- `tests/` contains fast unit tests and a Falkon integration test.
 - `local-data/` is a git-ignored place for local datasets and large inputs.
-- `examples/` contains runnable examples.
 
 ## Repository Layout
 
@@ -23,7 +25,8 @@ kernel-nplm/
 ├── local-data/                     # Local datasets; contents are ignored by Git
 ├── examples/
 │   ├── gaussian_1d_generator.py    # Generator-based 1D null/alternative toys
-│   └── event_weighted_loss.py      # Event-weighted loss checks
+│   ├── event_weighted_loss.py      # Event-weighted loss checks
+│   └── weighted_nplm_permutation_tests.ipynb  # Weighted-loss permutation smoke test
 ├── nplm/
 │   ├── logfalkon_nplm.py           # Core LogFalkonNPLM class
 │   ├── event_weighted_cross_entropy.py
@@ -31,8 +34,17 @@ kernel-nplm/
 ├── stat_tests/
 │   ├── permutation.py              # nplm_permutation_test
 │   ├── resampling.py               # Separate ensembles and combined convenience test
-│   └── comparison.py               # Empirical and checked chi-square calibration
-├── papers/
+│   ├── comparison.py               # Empirical and checked chi-square calibration
+│   └── _utils.py                   # Shared empirical p-value helper
+├── tuning/
+│   ├── resampling_scan.py          # (lambda, M) scan and inspection plots
+│   └── notebooks/
+│       └── 1d_exponential_resampling_tuning.ipynb
+├── tests/
+│   ├── test_resampling.py          # Fast tests; model fits are mocked
+│   ├── integration_resampling.py   # Real-Falkon check; run explicitly
+│   └── resampling_legacy.json      # Frozen seeded results for regression tests
+├── papers/                         # Reference paper (PDF)
 └── readme.md
 ```
 
@@ -45,6 +57,7 @@ The code expects a Python environment with:
 - `torch`
 - `falkon`
 - `matplotlib`, for plotting utilities and examples
+- `pandas` (optional), for the summary table in the tuning notebook
 
 The code is written with Python 3.9-compatible syntax. The intended runtime is
 Python 3.11 or newer.
@@ -70,7 +83,6 @@ config = {
     "NR": len(x_data),
     "M": "sqrt",
     "lambda": [1e-6],
-    "iter": [1000],
     "cpu": True,
     "keops": "no",
     "verbose": 0,
@@ -83,6 +95,16 @@ t_obs = nplm.compute_statistic(x, y)
 
 `NR` is required. It represents the expected data count under the null
 hypothesis and is used to set the reference-event weight.
+
+Leave the solver settings at their defaults: `cg_tol=sqrt(1e-7)` and
+`iter=[1_000_000]`. Falkon's conjugate-gradient solver stops once it converges
+to within `cg_tol`, so `iter` is only an upper limit and does not need to be
+tuned. Smaller `lambda` values need more iterations to converge, which shows up
+as longer training time rather than a truncated fit.
+
+The default `iter` covers a single `lambda`. Each entry of a `lambda` list is
+one Newton step, so a decreasing penalty path needs an explicit `iter` with one
+entry per step, typically a few iterations for the intermediate steps.
 
 ## Permutation Test
 
@@ -156,10 +178,9 @@ of 10 larger than the requested sampled size.
 ### Separate reconstruction and comparison
 
 For mixtures or several alternatives sharing one null, reconstruct ensembles
-independently and compare afterwards. These are parts of the same reference
-resampling method. The combined `nplm_resampling_test` remains available with its
-existing signature, sampling modes, result fields, flags and warnings. The
-permutation and hyperparameter-scan public interfaces are also retained.
+independently and compare afterwards. These functions implement the same
+reference-resampling method as `nplm_resampling_test`, split into separate
+steps so that one null ensemble can be reused.
 
 ```python
 from data import make_null_sampler, make_mixture_sampler, make_alternative_sampler
@@ -194,8 +215,9 @@ comparison = compare_nplm_results(null, {"mixture": alternative, "full": full})
 
 The two reconstruction functions and the combined wrapper share one toy loop:
 sample, prepare pooled inputs, set realized sizes, fit NPLM, validate, and collect.
-The combined wrapper supplies its existing RNG and model seeds to preserve its
-seeded sampling order.
+With the same `seed`, `nplm_resampling_null` with `make_null_sampler` reproduces
+the null statistics, data counts and model seeds of `nplm_resampling_test` run
+with `poisson_fluctuate_n_data=True` and the default `disjoint` sampling.
 
 Both reconstruction functions default to 100 toys, `seed=0`,
 `resample_nystrom=True`, and `dtype=np.float64`. Each calls its sampler once per
@@ -230,9 +252,9 @@ component counts. Mixture metadata includes both counts and their expectations.
 
 Poisson counts are nonnegative, including zero. A zero injected component is
 valid. An entirely empty pseudo-dataset cannot be fitted and raises an error
-identifying the toy (numbered from one) and model seed. This also corrects the combined
-wrapper's former clamp of zero Poisson counts to one. Failed and nonfinite fits
-abort the ensemble; they are never silently dropped or retried.
+identifying the toy (numbered from one) and model seed. `nplm_resampling_test`
+follows the same rule: a zero Poisson count is kept, not raised to one. Failed and
+nonfinite fits abort the ensemble; they are never silently dropped or retried.
 
 For fixed counts, synthetic generators, or file-backed sampling, supply a custom
 callback with the same contract. Preprocess the pools first or apply a previously
@@ -293,8 +315,6 @@ from tuning import nplm_resampling_hyperparameter_scan, save_scan_plots
 config = {
     "sigma": sigma,          # fixed before the scan
     "NR": n_data,
-    "iter": [100_000],
-    "cg_tol": 3.16e-4,
     "cpu": False,
     "keops": "yes",
     "verbose": 0,
@@ -324,7 +344,9 @@ these plots to choose the working point yourself. The underlying paper fixes
 takes `lambda` as small as possible while keeping training numerically stable.
 When `poisson_fluctuate_n_data=True`, each resampled null toy draws its realized
 pseudo-data count from `Poisson(n_data)` while `NR` stays fixed as the expected
-count used in the NPLM reference-event weight.
+count used in the NPLM reference-event weight. With `paired_toys=True` (the
+default), every grid point uses the same resampled toys, which makes the curves
+easier to compare.
 
 ## Examples
 
@@ -339,12 +361,18 @@ known data-generating distributions, computes NPLM statistics, saves arrays, and
 optionally plots the resulting distributions.
 
 The 1D example uses the separate reconstruction/comparison API with generator
-callbacks. Its CLI and existing saved `.npz` fields are retained, with realized
-reference/data counts and `provenance_json` added. The latter records each
-ensemble's master seed, model configuration, dtype, randomness policy and toy
-metadata. Per-model seeds retain their existing saved fields. Saving is handled
-by the example, not the statistical functions. The optional plot shows a
-chi-square curve only when the compatibility check passes.
+callbacks. It writes `gaussian_1d_generator_results.npz` to `--output-dir`
+(default `results_gaussian_1d/`) containing:
+
+- `t_null` and `t_alt`, the null and alternative statistics;
+- per-toy background and signal counts, realized reference/data counts, and
+  model seeds for each ensemble;
+- `summary_json`, the run settings;
+- `provenance_json`, recording each ensemble's master seed, model
+  configuration, dtype, randomness policy and toy metadata.
+
+Saving is handled by the example, not the statistical functions. The optional
+plot shows a chi-square curve only when the compatibility check passes.
 
 Run the fast sampling/calibration/regression tests (NumPy, SciPy and Torch;
 model fits are mocked and Falkon is optional):
@@ -360,7 +388,7 @@ zero and nonzero signal, including saved provenance:
 python -m unittest discover -s tests -p 'integration_*.py' -v
 python examples/gaussian_1d_generator.py --cpu --n-reference 400 \
     --expected-background 80 --expected-signal 10 --n-null 4 --n-alt 4 \
-    --nystrom-centers 20 --penalty 1e-5 --iterations 1000 --no-plot
+    --nystrom-centers 20 --penalty 1e-5 --no-plot
 ```
 
 Run the event-weighted loss checks:
@@ -368,6 +396,32 @@ Run the event-weighted loss checks:
 ```bash
 python3 examples/event_weighted_loss.py
 ```
+
+### Notebooks
+
+Both notebooks locate the repository root and add it to `sys.path`, so they can
+be opened from anywhere inside the repository.
+
+- `examples/weighted_nplm_permutation_tests.ipynb` is a CPU-friendly smoke test
+  for `EventWeightedCrossEntropyLoss` inside `falkon.LogisticFalkon`. It runs a
+  weighted permutation test on a null case (same Gaussian, different event-weight
+  distributions) and an alternative case (shifted Gaussians), then plots the
+  learned function.
+- `tuning/notebooks/1d_exponential_resampling_tuning.ipynb` runs
+  `nplm_resampling_hyperparameter_scan` on a truncated exponential reference
+  sample from `data.sample_ref_exp`. It fixes `sigma` from the reference
+  pairwise-distance scale, saves the inspection plots and a JSON summary, and
+  leaves the choice of working point to you.
+
+### Tests
+
+`tests/test_resampling.py` covers the samplers, ensemble reconstruction,
+comparison and chi-square checks, the permutation test and the 1D example CLI,
+with model fits mocked. It also checks seeded `nplm_resampling_test` results
+against the frozen values in `tests/resampling_legacy.json`; update that file
+only when a change to the seeded sampling sequence is intended.
+`tests/integration_resampling.py` uses real Falkon fits and has no skips, so
+run it only in a Falkon-capable environment (commands above).
 
 ## Reproducibility
 

@@ -118,6 +118,14 @@ class LogFalkonNPLM:
             cfg["lambda"] = [cfg["lambda"]]
         if not isinstance(cfg["iter"], (list, tuple)):
             cfg["iter"] = [cfg["iter"]]
+        # Each lambda is one Newton step with its own CG iteration limit. The default limit
+        # suits one step solved to cg_tol; a penalty path needs explicit per-step limits.
+        if len(cfg["iter"]) != len(cfg["lambda"]):
+            raise ValueError(
+                "Config 'iter' needs one entry per 'lambda' (one Newton step each); "
+                f"got {len(cfg['iter'])} and {len(cfg['lambda'])}. "
+                "The default 'iter' covers a single lambda only."
+            )
 
         cfg["verbose"] = int(cfg.get("verbose", 0))
 

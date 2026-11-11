@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 import subprocess
 import tempfile
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -441,6 +441,37 @@ class ExampleTests(unittest.TestCase):
                     )
                     if signal == 0:
                         self.assertTrue(np.all(saved["alt_signal_counts"] == 0))
+
+
+class ModelConfigTests(unittest.TestCase):
+    def test_solver_defaults_and_explicit_iter_for_penalty_paths(self):
+        # Stub Falkon so the config logic can be checked without it installed.
+        stubs = {}
+        for name, attrs in {
+            "falkon": ("LogisticFalkon",),
+            "falkon.gsc_losses": ("Loss", "WeightedCrossEntropyLoss"),
+            "falkon.kernels": ("GaussianKernel",),
+            "falkon.options": ("FalkonOptions",),
+        }.items():
+            stubs[name] = ModuleType(name)
+            for attr in attrs:
+                setattr(stubs[name], attr, type(attr, (), {}))
+        with patch.dict(sys.modules, stubs):
+            for name in [n for n in sys.modules if n == "nplm" or n.startswith("nplm.")]:
+                del sys.modules[name]
+            from nplm.logfalkon_nplm import LogFalkonNPLM
+            resolve = LogFalkonNPLM._resolve_config
+
+            default = resolve({"NR": 20})
+            self.assertEqual(default["iter"], [1_000_000])
+            self.assertEqual(default["cg_tol"], np.sqrt(1e-7))
+            path = {"NR": 20, "lambda": [1e-4, 1e-6]}
+            self.assertEqual(resolve(dict(path, iter=[5, 9]))["iter"], [5, 9])
+            for iters in (None, [1_000_000], [1, 2, 3]):
+                config = path if iters is None else dict(path, iter=iters)
+                with self.subTest(iter=iters), \
+                        self.assertRaisesRegex(ValueError, "one entry per 'lambda'"):
+                    resolve(config)
 
 
 if __name__ == "__main__":
